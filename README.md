@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Brick By Brick: frontend
 
-## Getting Started
+Construction management for construction and real-estate firms: projects and sites, stock,
+equipment, staff, invoices and property sales in one place. Built for Nigeria first (naira, Lagos
+time), and for phones on site as well as desktops in the office.
 
-First, run the development server:
+This repository is the web app. The API is
+[brick-by-brick-backend](https://github.com/amgoni/brick-by-brick-backend) (Node, Express,
+TypeScript), which is being built step by step. Until an area's endpoints exist there, its screens
+run on a stand-in API inside this app that serves data in the same shape.
+
+## Status
+
+- **Built:** the dashboard, and Projects & sites (the project list, and a page per project with
+  overview, schedule, daily reports, budget and team).
+- **Placeholder pages:** inventory, suppliers, equipment, staff, invoices, reports, properties,
+  clients, documents, users and roles, settings.
+- **Not started:** sign-in, and the mobile field app.
+
+The designs are a Claude Design export kept locally in `notes/`, which isn't in the repository.
+
+## Running it
+
+You need Node.js 22.
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open http://localhost:3000. Worth a look: `/` (the dashboard), `/projects`, and
+`/kitchen-sink`, which shows every design token and component in both themes.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The stand-in API needs no setup. To see slow or failing requests, copy `.env.example` to
+`.env.local` and set `MOCK_LATENCY_MS` (the average delay per request) or `MOCK_FAILURE_RATE` (the
+share of requests that fail, from 0 to 1).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script                 | What it does                                |
+| ---------------------- | ------------------------------------------- |
+| `npm run dev`          | Development server                          |
+| `npm run build`        | Production build                            |
+| `npm start`            | Serves the production build                 |
+| `npm run lint`         | ESLint                                      |
+| `npm run type-check`   | Generates route types, then runs TypeScript |
+| `npm run format`       | Formats everything with Prettier            |
+| `npm run format:check` | Checks formatting without changing files    |
 
-## Learn More
+Keep `lint`, `type-check` and `format:check` passing.
 
-To learn more about Next.js, take a look at the following resources:
+## How it fits together
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Every screen gets its data the same way: it calls a hook in `lib/queries/` (TanStack Query), which
+calls a function in `lib/api/`, which requests `/api/…`. Today `/api` is answered by `mocks/`, an
+Express-shaped router with seed data; later it will pass requests on to the real API.
+`lib/api/types.ts` is the contract both sides follow.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Pages are prerendered as static HTML, and their data loads in the browser.
 
-## Deploy on Vercel
+Stack: Next.js 16 (App Router, Cache Components), React 19, Tailwind CSS 4, TypeScript, TanStack
+Query, Radix UI and zustand.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The folder layout, the design-system rules and the conventions that catch people out are in
+[AGENTS.md](AGENTS.md).
