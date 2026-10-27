@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26" fill="none" stroke="#13306b" stroke-width="1.8">
+  <style>
+    .f { fill: #13306b; }
+    @media (prefers-color-scheme: dark) {
+      svg { stroke: #9db9f2; }
+      .f { fill: #9db9f2; }
+    }
+  </style>
+  <rect x="2" y="4" width="10" height="7" rx="1.5" />
+  <rect x="14" y="4" width="10" height="7" rx="1.5" />
+  <rect x="2" y="15" width="4" height="7" rx="1.5" />
+  <rect class="f" x="8" y="15" width="10" height="7" rx="1.5" />
+  <rect x="20" y="15" width="4" height="7" rx="1.5" />
+</svg>

@@ -1,0 +1,7 @@
+.next
+node_modules
+notes
+package-lock.json
+next-env.d.ts
+# Its Next.js block is written by `next dev`; reformatting it just makes churn.
+AGENTS.md

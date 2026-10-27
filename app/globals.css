@@ -1,0 +1,306 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Brick By Brick design tokens, ported from the Foundations board of the
+ * Claude Design export (notes/, local only).
+ *
+ *   "White and navy. Lines do the work: borders define every surface, and
+ *    solid fill is kept for the one primary action on a screen and for data."
+ *
+ * The rules that follow from that, and that every primitive in
+ * components/ui obeys:
+ *
+ *   1. Outline first. Cards, inputs, chips and badges are 1px borders on the
+ *      surface. Shadows exist only on things that float (menus, dialogs, toasts).
+ *   2. One filled button. `bg-primary` marks the one primary action on a
+ *      screen; everything else is outlined or ghost. Button defaults to outline.
+ *   3. Status is colour + words. A badge always carries a label, never colour
+ *      alone.
+ *   4. Numbers line up. `tabular-nums` for money and quantities, Geist Mono for
+ *      codes (INV-2026-0149, EQ-004).
+ *
+ * Two layers, the same shape as the design's own CSS:
+ *
+ *   - Raw values per theme, as plain custom properties on `:root` /
+ *     `[data-theme]` below. `[data-theme]` works on any element, not just
+ *     <html>, so a panel can be forced into the other theme (the kitchen sink
+ *     shows both side by side).
+ *   - `@theme inline` maps them onto Tailwind's namespaces, so `bg-surface`,
+ *     `text-ink-3`, `border-line-strong` and `border-success/40` exist.
+ *
+ * Tailwind's default palette, type scale and shadows are reset, so these are
+ * the only colours that exist: `bg-blue-500` doesn't compile. That's the
+ * point. A screen can't reach past the tokens, so every screen works in both
+ * themes without anyone checking.
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --surface: #ffffff; /* page, cards, controls */
+  --surface-muted: #f6f8fb; /* rare: sunken or read-only areas */
+  --hover: #f3f6fa; /* row, item and button hover */
+
+  /* Ink: text, in three steps */
+  --ink: #0b1830; /* headings, values, primary text */
+  --ink-2: #44526b; /* body copy, secondary text */
+  --ink-3: #5e6a80; /* meta, labels, placeholders */
+
+  /* Lines */
+  --line: #e3e8ef; /* card borders, dividers, table rules */
+  --line-strong: #c9d1dd; /* control borders: buttons, inputs, chips */
+
+  /* Navy */
+  --primary: #13306b; /* the one filled button */
+  --on-primary: #ffffff;
+  --accent: #13306b; /* links, focus, active tab and nav, info badges */
+  --data: #13306b; /* progress bars and charts */
+
+  /* Status: always paired with a label */
+  --success: #16704a;
+  --warning: #985200;
+  --danger: #b42318;
+
+  /* Effects */
+  --ring: rgb(19 48 107 / 0.16); /* 3px focus halo on inputs */
+  --scrim: rgb(11 24 48 / 0.32); /* behind dialogs and sheets */
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface: #0a1324;
+  --surface-muted: #0f1a2e;
+  --hover: #111d33;
+
+  --ink: #e7edf6;
+  --ink-2: #aebbd0;
+  --ink-3: #8c9ab2;
+
+  --line: #1d2a42;
+  --line-strong: #2e3d58;
+
+  /* Primary inverts: a pale fill with dark text, still the one filled button. */
+  --primary: #e6edf8;
+  --on-primary: #0a1630;
+  --accent: #9db9f2;
+  --data: #9db9f2;
+
+  --success: #5cc892;
+  --warning: #f2ae55;
+  --danger: #f58a80;
+
+  --ring: rgb(157 185 242 / 0.22);
+  --scrim: rgb(2 6 14 / 0.6);
+}
+
+/*
+ * The `dark:` variant exists for the rare thing a token can't express (an icon
+ * that swaps). Primitives don't use it: a token already changes with the theme,
+ * and a `dark:` class would leak into a light panel nested in a dark page.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-*: initial;
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-hover: var(--hover);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-accent: var(--accent);
+  --color-data: var(--data);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-ring: var(--ring);
+  --color-scrim: var(--scrim);
+
+  /* Fonts are loaded by next/font in app/layout.tsx. */
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@theme {
+  /*
+   * Type: the design's scale, base 14px. Line height (and tracking, on the
+   * title sizes) is baked into each step, so a size class is the whole spec:
+   * `text-3xl font-semibold` is a page title.
+   *
+   * This replaces Tailwind's scale rather than extending it, so `text-sm` is
+   * 12.5px here, not 14px. `lg` is 16px because that's the size an input has
+   * to be for iOS Safari not to zoom the page when it's focused.
+   */
+  --text-*: initial;
+  --text-2xs: 0.6875rem; /* 11: caps labels, nav groups, kbd, counts */
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem; /* 12: badges, tags, table headers, codes */
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.78125rem; /* 12.5: meta lines, captions, compact controls */
+  --text-sm--line-height: 1.125rem;
+  --text-md: 0.84375rem; /* 13.5: controls, nav, tabs, table cells */
+  --text-md--line-height: 1.25rem;
+  --text-base: 0.875rem; /* 14: body, card titles */
+  --text-base--line-height: 1.25rem;
+  --text-lg: 1rem; /* 16: lead copy; inputs on phones */
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.125rem; /* 18: panel titles */
+  --text-xl--line-height: 1.625rem;
+  --text-xl--letter-spacing: -0.01em;
+  --text-2xl: 1.25rem; /* 20: stat values */
+  --text-2xl--line-height: 1.75rem;
+  --text-2xl--letter-spacing: -0.01em;
+  --text-3xl: 1.5rem; /* 24: page titles */
+  --text-3xl--line-height: 1.875rem;
+  --text-3xl--letter-spacing: -0.015em;
+  --text-4xl: 1.75rem; /* 28: KPI figures */
+  --text-4xl--line-height: 2rem;
+  --text-4xl--letter-spacing: -0.02em;
+  --text-5xl: 2.75rem; /* 44: display */
+  --text-5xl--line-height: 3rem;
+  --text-5xl--letter-spacing: -0.025em;
+
+  --tracking-caps: 0.08em;
+
+  /*
+   * Radius: Tailwind's default steps already match the design, so they're
+   * kept: `rounded-md` 6px (inner), `rounded-lg` 8px (controls), `rounded-xl`
+   * 12px (cards), `rounded-2xl` 16px (panels), `rounded-full` (pills).
+   */
+
+  /* Shadows: only floating layers get one. */
+  --shadow-*: initial;
+  --shadow-pop: 0 12px 40px rgb(6 14 30 / 0.16); /* toasts, menus, popovers, save bar */
+  --shadow-modal: 0 24px 60px rgb(6 14 30 / 0.22); /* dialogs, command palette */
+  --shadow-drawer: -24px 0 60px rgb(6 14 30 / 0.14); /* right-hand sheets */
+
+  /*
+   * The design's one breakpoint. Below 860px the sidebar folds away and
+   * every control grows to a 44px tap target. That catches phones and iPads
+   * in portrait (820–834px), which is right for something used on site.
+   */
+  --breakpoint-md: 53.75rem;
+
+  /*
+   * Control heights, touch-first: 44px below the breakpoint, 38px (32px for
+   * compact ones) above it, via the media query further down. Every button,
+   * input, select, tab and nav item uses `h-control`, so the tap-target rule
+   * lives here once instead of in each component.
+   */
+  --spacing-control: 2.75rem;
+  --spacing-control-sm: 2.75rem;
+
+  /* Page content stops widening at 1480px. */
+  --container-content: 92.5rem;
+}
+
+@media (width >= 53.75rem) {
+  :root {
+    --spacing-control: 2.375rem;
+    --spacing-control-sm: 2rem;
+  }
+}
+
+@layer base {
+  /* Tailwind 4's default border colour is currentColor; here lines are lines. */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-line, currentcolor);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.45;
+  }
+
+  /*
+   * One focus style for everything a keyboard can reach. Inputs swap it for
+   * a border + halo (see components/ui/input.tsx), as the design does.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  ::placeholder {
+    color: var(--color-ink-3);
+    opacity: 1;
+  }
+
+  /* Tailwind 4's preflight dropped the pointer cursor on buttons. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  /*
+   * Lucide icons at the design's 16px and 1.75 stroke, so `<Search />` is right
+   * without a class. A size utility (`size-5`) still wins: utilities sit in a
+   * later layer than this.
+   */
+  .lucide {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    stroke-width: 1.75;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+}
+
+/* Small uppercase label: nav groups, card section labels, palette groups. */
+@utility caps {
+  font-size: var(--text-2xs);
+  line-height: var(--text-2xs--line-height);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+/*
+ * A strip that scrolls without showing a bar: a row of tabs or chips on a
+ * phone. Only for content reachable another way (tabs stay keyboard-navigable).
+ */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Honour the OS reduced-motion setting (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
