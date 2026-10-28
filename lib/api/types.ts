@@ -199,6 +199,12 @@ export interface BudgetLine {
   spent: Naira;
 }
 
+/**
+ * What can be done to something waiting for sign-off. Each is its own action
+ * (POST …/approve, POST …/reject), and a record already decided answers 409.
+ */
+export type Decision = "approve" | "reject";
+
 export type VariationOrderStatus = "pending" | "approved" | "rejected";
 
 /** A change to a project's scope or price that needs sign-off: GET /variation-orders. */
@@ -246,21 +252,158 @@ export interface ProjectTeam {
 }
 
 // ---------------------------------------------------------------------------
-// Stock
+// Inventory
 // ---------------------------------------------------------------------------
+
+/** Something the company stocks, from the catalogue: GET /stock-items. */
+export interface StockItem {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  /** "bags", "t", "pcs" */
+  unit: string;
+  /** What one unit is valued at: the last price paid. */
+  unitCost: Naira;
+}
+
+/** An item as other records mention it. */
+export type StockItemRef = Pick<StockItem, "id" | "name" | "unit">;
+
+export type LocationKind = "yard" | "site_store";
+
+/** Where stock is kept: GET /locations. */
+export interface StockLocation {
+  id: string;
+  name: string;
+  kind: LocationKind;
+  /** The project a site store belongs to; null for the yard. */
+  project: Ref | null;
+}
 
 /** How much of one item is at one store: GET /stock?locationId= */
 export interface StockLevel {
   id: string;
-  name: string;
-  sku: string;
-  category: string;
+  item: StockItem;
   location: Ref;
   quantity: number;
-  /** "bags", "t", "pcs" */
-  unit: string;
   /** Below this, it's time to reorder. */
   reorderLevel: number;
+}
+
+export type MaterialRequestStatus = "pending" | "approved" | "rejected";
+
+/** A site asking for materials: GET /material-requests. */
+export interface MaterialRequest {
+  id: string;
+  /** "MR-0412" */
+  code: string;
+  item: StockItemRef;
+  quantity: number;
+  /** Why, in the site team's words. */
+  note: string | null;
+  project: Ref;
+  requestedBy: Ref;
+  requestedAt: ISODateTime;
+  neededBy: ISODate;
+  status: MaterialRequestStatus;
+  /** Who approved or rejected it, and when; null while it's pending. */
+  decidedBy: Ref | null;
+  decidedAt: ISODateTime | null;
+}
+
+export type PurchaseOrderStatus =
+  "awaiting_approval" | "ordered" | "part_delivered" | "received" | "rejected";
+
+export interface PurchaseOrderLine {
+  item: StockItemRef;
+  quantity: number;
+  unitPrice: Naira;
+  /** Delivered so far. */
+  received: number;
+}
+
+/** An order to a supplier: GET /purchase-orders. */
+export interface PurchaseOrder {
+  id: string;
+  /** "PO-2026-0233", given by the server when the order is created. */
+  code: string;
+  supplier: Ref;
+  deliverTo: Ref;
+  lines: PurchaseOrderLine[];
+  /** Worked out by the server from the lines, with VAT at the company's rate. */
+  subtotal: Naira;
+  vat: Naira;
+  total: Naira;
+  status: PurchaseOrderStatus;
+  raisedBy: Ref;
+  raisedAt: ISODateTime;
+  expectedDelivery: ISODate | null;
+  notes: string | null;
+  /** Who approved or rejected it; null if it didn't need approval or is still waiting. */
+  decidedBy: Ref | null;
+  decidedAt: ISODateTime | null;
+}
+
+/**
+ * What a new purchase order is made from: the body of POST /purchase-orders.
+ * Optional fields are left out when blank, never sent as "".
+ */
+export interface PurchaseOrderInput {
+  supplierId: string;
+  deliverToId: string;
+  lines: { itemId: string; quantity: number; unitPrice: Naira }[];
+  expectedDelivery?: ISODate;
+  notes?: string;
+}
+
+/** The rules purchase orders are raised under: GET /purchasing/settings. */
+export interface PurchasingSettings {
+  /** 0.075, Nigeria's VAT. */
+  vatRate: number;
+  /** An order whose total is over this waits for `approver`. */
+  approvalThreshold: Naira;
+  approver: Ref;
+}
+
+export type StockMovementKind = "issue" | "receipt" | "transfer" | "adjustment";
+
+/** Stock coming in, going out or changing places: GET /stock-movements. */
+export interface StockMovement {
+  id: string;
+  /** The document behind it: "ISS-1188", "GRN-0907". */
+  code: string;
+  kind: StockMovementKind;
+  item: StockItemRef;
+  /**
+   * What it did to stock: +30 received, -24 issued, -2 written off at a count.
+   * A transfer's is the amount moved, which leaves one store and arrives at another.
+   */
+  quantity: number;
+  /** Where it came from: a store, or a supplier. */
+  from: string | null;
+  /** Where it went: a store, or what it was used on ("Blockwork L5"). */
+  to: string | null;
+  /** What it was done against: "PO-2026-0231", "Stock count". */
+  reference: string | null;
+  by: Ref;
+  at: ISODateTime;
+}
+
+// ---------------------------------------------------------------------------
+// Suppliers
+// ---------------------------------------------------------------------------
+
+export type SupplierStatus = "approved" | "under_review" | "blocked";
+
+/** GET /suppliers */
+export interface Supplier {
+  id: string;
+  name: string;
+  /** "Cement & aggregates", "Steel", "Plant hire" */
+  category: string;
+  /** Blocked suppliers can't be sent new orders. */
+  status: SupplierStatus;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,7 +422,7 @@ export type AttentionItem =
   | {
       kind: "low_stock";
       id: string;
-      item: Ref;
+      item: StockItemRef;
       location: Ref;
       quantity: number;
       unit: string;

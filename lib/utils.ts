@@ -17,3 +17,10 @@ export function getInitials(input?: string | null): string {
 export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/** A number typed into a form ("1250.5") as a number; null when it's empty or isn't one. */
+export function parseNumber(value: string): number | null {
+  if (value.trim() === "" || value === ".") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}

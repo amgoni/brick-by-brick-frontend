@@ -3,6 +3,7 @@
 import { BadgeCheck, CircleCheck, Package, Receipt, Wrench, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { QueryBoundary } from "@/components/data/query-boundary";
+import { suggestedOrder } from "@/components/inventory/inventory-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ import {
   formatRelativeDay,
 } from "@/lib/format";
 import { useDashboardSummary } from "@/lib/queries/dashboard";
+import { useUiStore } from "@/store/ui.store";
 
 export function AttentionCard() {
   return (
@@ -77,9 +79,15 @@ function AttentionList() {
               <ListItemTitle>{view.title}</ListItemTitle>
               <ListItemDescription>{view.description}</ListItemDescription>
             </ListItemContent>
-            <Button asChild size="sm">
-              <Link href={view.href}>{view.action}</Link>
-            </Button>
+            {"href" in view.action ? (
+              <Button asChild size="sm">
+                <Link href={view.action.href}>{view.action.label}</Link>
+              </Button>
+            ) : (
+              <Button size="sm" onClick={view.action.onClick}>
+                {view.action.label}
+              </Button>
+            )}
           </ListItem>
         );
       })}
@@ -92,8 +100,8 @@ interface AttentionView {
   tone: "warning" | "danger";
   title: string;
   description: string;
-  action: string;
-  href: string;
+  /** A link to where it's dealt with, or a button that deals with it right here. */
+  action: { label: string; href: string } | { label: string; onClick: () => void };
 }
 
 /**
@@ -116,8 +124,16 @@ function describeAttention(item: AttentionItem, now: Date): AttentionView {
         ]
           .filter(Boolean)
           .join(" · "),
-        action: "Reorder",
-        href: "/inventory",
+        // Straight to a purchase order for it, without leaving the dashboard.
+        action: {
+          label: "Reorder",
+          onClick: () =>
+            useUiStore.getState().openPurchaseOrder({
+              itemId: item.item.id,
+              deliverToId: item.location.id,
+              quantity: suggestedOrder(item),
+            }),
+        },
       };
     }
     case "overdue_invoice": {
@@ -127,8 +143,7 @@ function describeAttention(item: AttentionItem, now: Date): AttentionView {
         tone: "danger",
         title: `${item.invoice.number} is ${formatCount(days, "day")} overdue`,
         description: `${item.client.name} · ${formatMoney(item.balance)}`,
-        action: "Chase",
-        href: "/invoices",
+        action: { label: "Chase", href: "/invoices" },
       };
     }
     case "service_due":
@@ -137,8 +152,7 @@ function describeAttention(item: AttentionItem, now: Date): AttentionView {
         tone: "warning",
         title: `${item.equipment.name} service due`,
         description: `${item.equipment.code} · ${item.service} ${formatRelativeDay(item.dueDate, now)}`,
-        action: "Schedule",
-        href: "/equipment",
+        action: { label: "Schedule", href: "/equipment" },
       };
     case "certifications_expiring":
       return {
@@ -146,8 +160,7 @@ function describeAttention(item: AttentionItem, now: Date): AttentionView {
         tone: "warning",
         title: `${formatCount(item.count, "certification")} expiring`,
         description: `${item.certification} · by ${formatDate(item.latestExpiry, "short")}`,
-        action: "Review",
-        href: "/staff",
+        action: { label: "Review", href: "/staff" },
       };
     default: {
       const unhandled: never = item;

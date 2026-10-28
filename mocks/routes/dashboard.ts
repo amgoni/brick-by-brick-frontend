@@ -1,6 +1,6 @@
 import type { ApprovalKind, AttentionItem, DashboardSummary, UnitStatus } from "@/lib/api/types";
 import type { Router } from "../router";
-import type { InvoiceRecord } from "../seed";
+import type { Db, InvoiceRecord } from "../seed";
 import { lagosDay } from "../time";
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
@@ -8,6 +8,20 @@ const sum = (values: number[]) => values.reduce((total, value) => total + value,
 /** What the client still owes. Drafts and void invoices owe nothing. */
 export const balanceOf = (invoice: InvoiceRecord) =>
   invoice.status === "issued" ? invoice.amount - invoice.paid : 0;
+
+/**
+ * What's waiting for a decision, counted from the records themselves, so
+ * approving one anywhere in the app takes it off the count everywhere.
+ */
+export function pendingApprovals(db: Db): Record<ApprovalKind, number> {
+  return {
+    material_request: db.materialRequests.filter((request) => request.status === "pending").length,
+    timesheet: db.timesheets.length,
+    purchase_order: db.purchaseOrders.filter((order) => order.status === "awaiting_approval")
+      .length,
+    variation_order: db.variationOrders.filter((order) => order.status === "pending").length,
+  };
+}
 
 export function registerDashboardRoutes(router: Router) {
   router.get("/dashboard/summary", ({ db, now }): DashboardSummary => {
@@ -21,17 +35,18 @@ export function registerDashboardRoutes(router: Router) {
     const attention: AttentionItem[] = [];
 
     const low = db.stock
-      .filter((item) => item.quantity < item.reorderLevel)
+      .filter((level) => level.quantity < level.reorderLevel)
       .sort((a, b) => a.quantity / a.reorderLevel - b.quantity / b.reorderLevel);
     const lowest = low[0];
-    if (lowest) {
+    const lowItem = lowest && db.stockItems.find((entry) => entry.id === lowest.itemId);
+    if (lowest && lowItem) {
       attention.push({
         kind: "low_stock",
         id: `low_stock:${lowest.id}`,
-        item: { id: lowest.id, name: lowest.name },
+        item: { id: lowItem.id, name: lowItem.name, unit: lowItem.unit },
         location: lowest.location,
         quantity: lowest.quantity,
-        unit: lowest.unit,
+        unit: lowItem.unit,
         reorderLevel: lowest.reorderLevel,
         othersLow: low.length - 1,
       });
@@ -77,14 +92,6 @@ export function registerDashboardRoutes(router: Router) {
       });
     }
 
-    const approvals: Record<ApprovalKind, number> = {
-      material_request: 0,
-      timesheet: 0,
-      purchase_order: 0,
-      variation_order: 0,
-    };
-    for (const approval of db.approvals) approvals[approval.kind] += 1;
-
     const units: Record<UnitStatus, number> = { sold: 0, reserved: 0, leased: 0, available: 0 };
     for (const development of db.developments) {
       for (const status of Object.keys(units) as UnitStatus[]) {
@@ -111,7 +118,7 @@ export function registerDashboardRoutes(router: Router) {
         rostered: sum(active.map((project) => project.crew?.rostered ?? 0)),
       },
       attention,
-      approvals,
+      approvals: pendingApprovals(db),
       sales: { developments: db.developments.length, units },
     };
   });

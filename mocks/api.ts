@@ -1,10 +1,11 @@
 import { createRouter } from "./router";
 import { registerDashboardRoutes } from "./routes/dashboard";
+import { registerInventoryRoutes } from "./routes/inventory";
 import { registerMeRoutes } from "./routes/me";
 import { registerProjectRoutes } from "./routes/projects";
 import { registerReportRoutes } from "./routes/reports";
 import { registerSearchRoutes } from "./routes/search";
-import { registerStockRoutes } from "./routes/stock";
+import { registerSupplierRoutes } from "./routes/suppliers";
 
 /**
  * The stand-in backend, served by app/api/[...path]/route.ts.
@@ -18,6 +19,7 @@ export const mockApi = createRouter();
 registerMeRoutes(mockApi);
 registerDashboardRoutes(mockApi);
 registerProjectRoutes(mockApi);
+registerInventoryRoutes(mockApi);
+registerSupplierRoutes(mockApi);
 registerReportRoutes(mockApi);
 registerSearchRoutes(mockApi);
-registerStockRoutes(mockApi);

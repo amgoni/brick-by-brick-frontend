@@ -1,10 +1,10 @@
 import type {
-  ApprovalKind,
   BudgetLine,
   CashFlowMonth,
   CurrentUser,
   ISODate,
   ISODateTime,
+  MaterialRequest,
   Milestone,
   Naira,
   Notification,
@@ -12,8 +12,16 @@ import type {
   ProjectIssue,
   ProjectPhase,
   ProjectTeam,
+  PurchaseOrder,
+  PurchaseOrderLine,
+  PurchasingSettings,
   Ref,
   SiteReport,
+  StockItem,
+  StockItemRef,
+  StockLocation,
+  StockMovement,
+  Supplier,
   UnitStatus,
   VariationOrder,
 } from "@/lib/api/types";
@@ -54,16 +62,13 @@ export interface InvoiceRecord {
   status: "draft" | "issued" | "void";
 }
 
-export interface StockRecord {
+/** How much of one catalogue item is at one store. */
+export interface StockLevelRecord {
   id: string;
-  name: string;
-  sku: string;
-  category: string;
+  itemId: string;
   location: Ref;
   quantity: number;
   reorderLevel: number;
-  unit: string;
-  unitPrice: Naira;
 }
 
 export interface EquipmentRecord {
@@ -75,13 +80,12 @@ export interface EquipmentRecord {
   nextService: { dueOn: ISODate; description: string } | null;
 }
 
-export interface ApprovalRecord {
-  /** The code of the thing waiting: MR-0412, VO-007. */
+/** A crew's timesheet waiting for sign-off. The Staff module will give these their real shape. */
+export interface TimesheetRecord {
   id: string;
-  kind: ApprovalKind;
   title: string;
-  requestedBy: Ref;
-  requestedAt: ISODateTime;
+  submittedBy: Ref;
+  submittedAt: ISODateTime;
 }
 
 export interface CertificationRecord {
@@ -119,9 +123,18 @@ export interface Db {
   siteReports: SiteReport[];
   variationOrders: VariationOrder[];
   invoices: InvoiceRecord[];
-  stock: StockRecord[];
+  stockItems: StockItem[];
+  locations: StockLocation[];
+  stock: StockLevelRecord[];
+  stockMovements: StockMovement[];
+  suppliers: Supplier[];
+  purchasing: PurchasingSettings;
+  materialRequests: MaterialRequest[];
+  purchaseOrders: PurchaseOrder[];
+  /** The last number given out, per kind of document: PO-2026-0233. */
+  sequences: { purchaseOrder: number };
   equipment: EquipmentRecord[];
-  approvals: ApprovalRecord[];
+  timesheets: TimesheetRecord[];
   certifications: CertificationRecord[];
   developments: DevelopmentRecord[];
   cashFlow: CashFlowMonth[];
@@ -144,10 +157,11 @@ export function createSeed(now: Date): Db {
     zainab: { id: "per_zainab", name: "Zainab Bello", role: "Fit-out lead" },
     tolu: { id: "per_tolu", name: "Tolu Adebayo", role: "Site engineer" },
     ifeanyi: { id: "per_ifeanyi", name: "Ifeanyi Okeke", role: "Site engineer" },
-    hauwa: { id: "per_hauwa", name: "Hauwa Lawal", role: "Site engineer" },
+    hauwa: { id: "per_hauwa", name: "Hauwa Sani", role: "Site engineer" },
     ngozi: { id: "per_ngozi", name: "Ngozi Ume", role: "Quantity surveyor" },
     musa: { id: "per_musa", name: "Musa Danladi", role: "HSE officer" },
     bisi: { id: "per_bisi", name: "Bisi Alade", role: "Procurement officer" },
+    yusuf: { id: "per_yusuf", name: "Yusuf Bala", role: "Storekeeper" },
     sunday: { id: "per_sunday", name: "Sunday Okon", role: "Foreman" },
     emeka: { id: "per_emeka", name: "Emeka Obi", role: "Crane operator" },
     yakubu: { id: "per_yakubu", name: "Yakubu Garba", role: "Plant operator" },
@@ -169,7 +183,7 @@ export function createSeed(now: Date): Db {
     lekki: { id: "loc_lpr", name: "Lekki Palms store" },
     ikoyi: { id: "loc_ict", name: "Ikoyi Crest store" },
     maitama: { id: "loc_mtc", name: "Maitama Court store" },
-    ibadan: { id: "loc_irp", name: "Ring Road site store" },
+    ibadan: { id: "loc_irp", name: "Ibadan Ring Road store" },
     yaba: { id: "loc_yth", name: "Yaba Tech Hub store" },
     yard: { id: "loc_yard", name: "Central yard, Ikeja" },
   } satisfies Record<string, Ref>;
@@ -947,62 +961,368 @@ export function createSeed(now: Date): Db {
     },
   ];
 
-  const stockRows: [string, string, string, Ref, number, number, string, Naira][] = [
-    [
-      "Cement 42.5R (50kg bag)",
-      "CEM-425",
-      "Cement & aggregates",
-      store.lekki,
-      38,
-      150,
-      "bags",
-      9_800,
-    ],
-    [
-      "Cement 42.5R (50kg bag)",
-      "CEM-425",
-      "Cement & aggregates",
-      store.yard,
-      1_240,
-      400,
-      "bags",
-      9_800,
-    ],
-    ["Sharp sand", "AGG-SND", "Cement & aggregates", store.lekki, 18, 20, "t", 14_500],
-    ["Granite ¾″", "AGG-GR34", "Cement & aggregates", store.ikoyi, 64, 30, "t", 32_000],
-    ["Rebar 16mm", "STL-R16", "Steel", store.ikoyi, 2.1, 8, "t", 1_050_000],
-    ["Rebar 12mm", "STL-R12", "Steel", store.lekki, 6.2, 4, "t", 1_020_000],
-    ["BRC mesh A142", "STL-A142", "Steel", store.maitama, 0, 20, "sheets", 46_000],
-    ["Hollow blocks 9″", "MAS-B9", "Masonry", store.lekki, 4_200, 1_500, "pcs", 650],
-    ["Marine plywood 18mm", "FRM-PLY18", "Formwork", store.yard, 310, 120, "sheets", 28_500],
-    [
-      "Long-span aluminium roofing 0.55mm",
-      "ROF-AL55",
-      "Roofing",
-      store.yard,
-      1_850,
-      600,
-      "m²",
-      7_200,
-    ],
-    ["PVC pipe 4″ (6m)", "PLB-P4", "Plumbing", store.ikoyi, 140, 60, "lengths", 6_800],
-    ["Cable 2.5mm² (100m roll)", "ELC-C25", "Electrical", store.yaba, 24, 10, "rolls", 62_000],
-    ["Porcelain tiles 60×60", "FIN-T60", "Finishes", store.maitama, 420, 150, "m²", 11_500],
-    ["Emulsion paint (20L)", "FIN-EM20", "Finishes", store.maitama, 36, 40, "pails", 38_000],
+  // The catalogue: what the company stocks, valued at the last price paid.
+  const itemRows: [string, string, string, string, Naira][] = [
+    ["CEM-425", "Cement 42.5R (50kg bag)", "Cement & aggregates", "bags", 9_800],
+    ["AGG-SND", "Sharp sand", "Cement & aggregates", "t", 14_500],
+    ["AGG-GR34", "Granite ¾″", "Cement & aggregates", "t", 32_000],
+    ["STL-R16", "Rebar 16mm", "Steel", "t", 1_050_000],
+    ["STL-R12", "Rebar 12mm", "Steel", "t", 1_020_000],
+    ["STL-A142", "BRC mesh A142", "Steel", "sheets", 46_000],
+    ["MAS-B9", "Hollow blocks 9″", "Masonry", "pcs", 650],
+    ["FRM-PLY18", "Marine plywood 18mm", "Formwork", "sheets", 28_500],
+    ["ROF-AL55", "Long-span aluminium roofing 0.55mm", "Roofing", "m²", 7_200],
+    ["PLB-P4", "PVC pipe 4″ (6m)", "Plumbing", "lengths", 6_800],
+    ["ELC-C25", "Cable 2.5mm² (100m roll)", "Electrical", "rolls", 62_000],
+    ["FIN-T60", "Porcelain tiles 60×60", "Finishes", "m²", 11_500],
+    ["FIN-EM20", "Emulsion paint (20L)", "Finishes", "pails", 38_000],
   ];
-  const stock: StockRecord[] = stockRows.map(
-    ([name, sku, category, location, quantity, reorderLevel, unit, unitPrice], index) => ({
+  const stockItems: StockItem[] = itemRows.map(([sku, name, category, unit, unitCost]) => ({
+    id: `itm_${sku.toLowerCase()}`,
+    sku,
+    name,
+    category,
+    unit,
+    unitCost,
+  }));
+  const bySku = Object.fromEntries(stockItems.map((entry) => [entry.sku, entry]));
+  const item = (sku: string): StockItemRef => {
+    const { id, name, unit } = bySku[sku]!;
+    return { id, name, unit };
+  };
+
+  const locations: StockLocation[] = [
+    { ...store.yard, kind: "yard", project: null },
+    { ...store.lekki, kind: "site_store", project: p("LPR") },
+    { ...store.ikoyi, kind: "site_store", project: p("ICT") },
+    { ...store.maitama, kind: "site_store", project: p("MTC") },
+    { ...store.yaba, kind: "site_store", project: p("YTH") },
+    { ...store.ibadan, kind: "site_store", project: p("IRP") },
+  ];
+
+  // Item, store, on hand, reorder level.
+  const levelRows: [string, Ref, number, number][] = [
+    ["CEM-425", store.lekki, 38, 150],
+    ["CEM-425", store.yard, 1_240, 400],
+    ["AGG-SND", store.lekki, 18, 20],
+    ["AGG-GR34", store.ikoyi, 64, 30],
+    ["STL-R16", store.ikoyi, 2.1, 8],
+    ["STL-R12", store.lekki, 6.2, 4],
+    ["STL-A142", store.maitama, 0, 20],
+    ["MAS-B9", store.lekki, 4_200, 1_500],
+    ["FRM-PLY18", store.yard, 310, 120],
+    ["ROF-AL55", store.yard, 1_850, 600],
+    ["PLB-P4", store.ikoyi, 140, 60],
+    ["ELC-C25", store.yaba, 24, 10],
+    ["FIN-T60", store.maitama, 420, 150],
+    ["FIN-EM20", store.maitama, 36, 40],
+    ["FRM-PLY18", store.ibadan, 60, 40],
+  ];
+  const stock: StockLevelRecord[] = levelRows.map(
+    ([sku, location, quantity, reorderLevel], index) => ({
       id: `stk_${String(index + 1).padStart(2, "0")}`,
-      name,
-      sku,
-      category,
+      itemId: bySku[sku]!.id,
       location,
       quantity,
       reorderLevel,
-      unit,
-      unitPrice,
     }),
   );
+
+  // From the Suppliers board.
+  const supplierRows: [string, string, string, Supplier["status"]][] = [
+    ["sup_northgate", "Northgate Cement Distributors", "Cement & aggregates", "approved"],
+    ["sup_apex", "Apex Steel Ltd", "Steel", "approved"],
+    ["sup_lagoon", "Lagoon Aggregates", "Cement & aggregates", "under_review"],
+    ["sup_coastline", "Coastline Building Supplies", "General & formwork", "approved"],
+    ["sup_unity", "Unity Timber & Sawmill", "General & formwork", "blocked"],
+    ["sup_skyline", "Skyline Lifting Ltd", "Plant hire", "approved"],
+    ["sup_lagosplant", "Lagos Plant Rental", "Plant hire", "approved"],
+    ["sup_readymix", "Readymix Pump Services", "Plant hire", "approved"],
+    ["sup_aqua", "Aqua MEP Services Ltd", "Subcontractor", "approved"],
+    ["sup_prime", "Prime Roofing Co.", "Subcontractor", "under_review"],
+  ];
+  const suppliers: Supplier[] = supplierRows.map(([id, name, category, status]) => ({
+    id,
+    name,
+    category,
+    status,
+  }));
+  const supplier = (id: string): Ref => ref(suppliers.find((entry) => entry.id === id)!);
+
+  const purchasing: PurchasingSettings = {
+    vatRate: 0.075,
+    approvalThreshold: 5_000_000,
+    approver: ref(person.adaeze),
+  };
+
+  const request = (
+    code: string,
+    sku: string,
+    quantity: number,
+    note: string,
+    projectCode: string,
+    by: PersonRecord,
+    requested: [offset: number, time: string],
+    neededIn: number,
+  ): MaterialRequest => ({
+    id: `mr_${code.slice(3)}`,
+    code,
+    item: item(sku),
+    quantity,
+    note,
+    project: p(projectCode),
+    requestedBy: ref(by),
+    requestedAt: at(...requested),
+    neededBy: day(neededIn),
+    status: "pending",
+    decidedBy: null,
+    decidedAt: null,
+  });
+  const materialRequests: MaterialRequest[] = [
+    request(
+      "MR-0412",
+      "CEM-425",
+      200,
+      "Stock at 38 bags; blockwork L5–L6",
+      "LPR",
+      person.chinedu,
+      [-1, "10:12"],
+      1,
+    ),
+    request(
+      "MR-0411",
+      "STL-R16",
+      10,
+      "Level 10 slab beams",
+      "ICT",
+      person.folake,
+      [-1, "09:40"],
+      0,
+    ),
+    request(
+      "MR-0410",
+      "STL-A142",
+      30,
+      "External paving bed",
+      "MTC",
+      person.ibrahim,
+      [-2, "15:05"],
+      4,
+    ),
+    request(
+      "MR-0409",
+      "AGG-SND",
+      40,
+      "Plastering, levels 1–2",
+      "LPR",
+      person.tolu,
+      [-2, "11:30"],
+      3,
+    ),
+    {
+      ...request(
+        "MR-0408",
+        "MAS-B9",
+        2_000,
+        "Blockwork L4",
+        "LPR",
+        person.chinedu,
+        [-7, "09:20"],
+        -4,
+      ),
+      status: "approved",
+      decidedBy: ref(person.adaeze),
+      decidedAt: at(-6, "14:05"),
+    },
+  ];
+
+  const line = (
+    sku: string,
+    quantity: number,
+    unitPrice: Naira,
+    received = 0,
+  ): PurchaseOrderLine => ({
+    item: item(sku),
+    quantity,
+    unitPrice,
+    received,
+  });
+  const order = (
+    code: string,
+    supplierId: string,
+    deliverTo: Ref,
+    lines: PurchaseOrderLine[],
+    status: PurchaseOrder["status"],
+    by: PersonRecord,
+    raised: [offset: number, time: string],
+    expectedIn: number,
+    notes: string | null,
+    decided: [offset: number, time: string] | null = null,
+  ): PurchaseOrder => ({
+    id: `po_${code.slice(-4)}`,
+    code,
+    supplier: supplier(supplierId),
+    deliverTo,
+    lines,
+    ...orderTotals(lines, purchasing.vatRate),
+    status,
+    raisedBy: ref(by),
+    raisedAt: at(...raised),
+    expectedDelivery: day(expectedIn),
+    notes,
+    decidedBy: decided ? ref(person.adaeze) : null,
+    decidedAt: decided ? at(...decided) : null,
+  });
+  const purchaseOrders: PurchaseOrder[] = [
+    order(
+      "PO-2026-0233",
+      "sup_northgate",
+      store.yard,
+      [line("CEM-425", 1_000, 9_650)],
+      "awaiting_approval",
+      person.bisi,
+      [-2, "14:20"],
+      4,
+      "Two drops of 500 bags, mornings only.",
+    ),
+    order(
+      "PO-2026-0232",
+      "sup_apex",
+      store.ikoyi,
+      [line("STL-R16", 20, 1_050_000)],
+      "awaiting_approval",
+      person.folake,
+      [-3, "12:10"],
+      3,
+      "Mill certificates with the delivery, please.",
+    ),
+    // Under the approval threshold, so it went straight to the supplier.
+    order(
+      "PO-2026-0231",
+      "sup_lagoon",
+      store.ikoyi,
+      [line("AGG-GR34", 60, 32_000, 30)],
+      "part_delivered",
+      person.bisi,
+      [-8, "10:40"],
+      -1,
+      null,
+    ),
+    order(
+      "PO-2026-0229",
+      "sup_coastline",
+      store.yard,
+      [line("FRM-PLY18", 200, 28_500, 200)],
+      "received",
+      person.bisi,
+      [-14, "09:15"],
+      -9,
+      null,
+      [-14, "16:00"],
+    ),
+  ];
+
+  const movement = (
+    code: string,
+    kind: StockMovement["kind"],
+    sku: string,
+    quantity: number,
+    from: string | null,
+    to: string | null,
+    reference: string | null,
+    by: PersonRecord,
+    when: [offset: number, time: string],
+  ): StockMovement => ({
+    id: `mov_${code.toLowerCase()}`,
+    code,
+    kind,
+    item: item(sku),
+    quantity,
+    from,
+    to,
+    reference,
+    by: ref(by),
+    at: at(...when),
+  });
+  const stockMovements: StockMovement[] = [
+    movement(
+      "ISS-1188",
+      "issue",
+      "CEM-425",
+      -24,
+      store.lekki.name,
+      "Blockwork L5",
+      null,
+      person.bisi,
+      [-1, "08:14"],
+    ),
+    movement(
+      "GRN-0907",
+      "receipt",
+      "AGG-GR34",
+      30,
+      "Lagoon Aggregates",
+      store.ikoyi.name,
+      "PO-2026-0231",
+      person.yusuf,
+      [-2, "16:40"],
+    ),
+    movement(
+      "TRF-0341",
+      "transfer",
+      "FRM-PLY18",
+      60,
+      store.yard.name,
+      store.ibadan.name,
+      null,
+      person.bisi,
+      [-2, "11:05"],
+    ),
+    movement(
+      "ISS-1181",
+      "issue",
+      "STL-R12",
+      -1.4,
+      store.lekki.name,
+      "Level 6 beams",
+      null,
+      person.bisi,
+      [-3, "17:22"],
+    ),
+    movement(
+      "ADJ-0058",
+      "adjustment",
+      "FIN-EM20",
+      -2,
+      store.maitama.name,
+      null,
+      "Stock count",
+      person.hauwa,
+      [-3, "09:10"],
+    ),
+    movement(
+      "GRN-0902",
+      "receipt",
+      "ROF-AL55",
+      900,
+      "Coastline Building Supplies",
+      store.yard.name,
+      "PO-2026-0226",
+      person.bisi,
+      [-4, "14:30"],
+    ),
+    movement(
+      "GRN-0899",
+      "receipt",
+      "FRM-PLY18",
+      200,
+      "Coastline Building Supplies",
+      store.yard.name,
+      "PO-2026-0229",
+      person.bisi,
+      [-9, "11:00"],
+    ),
+  ];
 
   const service = (offset: number, description: string) => ({ dueOn: day(offset), description });
   const equipment: EquipmentRecord[] = [
@@ -1104,58 +1424,21 @@ export function createSeed(now: Date): Db {
     },
   ];
 
-  const approval = (
+  const timesheet = (
     id: string,
-    kind: ApprovalKind,
     title: string,
     by: Ref,
     offset: number,
     time: string,
-  ): ApprovalRecord => ({ id, kind, title, requestedBy: ref(by), requestedAt: at(offset, time) });
-  const approvals: ApprovalRecord[] = [
-    approval("MR-0412", "material_request", "Cement 42.5R × 200 bags", person.chinedu, -1, "10:12"),
-    approval("MR-0411", "material_request", "Rebar 16mm × 10 t", person.folake, -1, "09:40"),
-    approval(
-      "MR-0410",
-      "material_request",
-      "BRC mesh A142 × 30 sheets",
-      person.ibrahim,
-      -2,
-      "15:05",
-    ),
-    approval("MR-0409", "material_request", "Sharp sand × 40 t", person.tolu, -2, "11:30"),
-    approval("TS-1", "timesheet", "Masonry crew A (22)", person.sunday, -1, "18:00"),
-    approval("TS-2", "timesheet", "Steel fixers (14)", person.folake, -1, "18:05"),
-    approval("TS-3", "timesheet", "Carpenters & formwork (11)", person.folake, -1, "18:06"),
-    approval("TS-4", "timesheet", "Finishing crew (12)", person.ibrahim, -1, "17:50"),
-    approval("TS-5", "timesheet", "Groundworks crew (9)", person.kunle, -1, "17:45"),
-    approval("TS-6", "timesheet", "Emeka Obi, crane operator", person.folake, -1, "18:07"),
-    approval("TS-7", "timesheet", "Yakubu Garba, plant operator", person.kunle, -1, "17:46"),
-    approval(
-      "PO-2026-0233",
-      "purchase_order",
-      "Northgate Cement Distributors · Cement 42.5R × 1,000 bags",
-      person.bisi,
-      -2,
-      "14:20",
-    ),
-    approval(
-      "PO-2026-0232",
-      "purchase_order",
-      "Apex Steel Ltd · Rebar 16mm × 20 t",
-      person.folake,
-      -3,
-      "12:10",
-    ),
-    // Waiting on the Lekki Palms budget tab; deciding it there clears it here.
-    approval(
-      "VO-007",
-      "variation_order",
-      "Lekki Palms Residences · Upgrade penthouse windows",
-      person.chinedu,
-      -5,
-      "11:20",
-    ),
+  ): TimesheetRecord => ({ id, title, submittedBy: ref(by), submittedAt: at(offset, time) });
+  const timesheets: TimesheetRecord[] = [
+    timesheet("TS-1", "Masonry crew A (22)", person.sunday, -1, "18:00"),
+    timesheet("TS-2", "Steel fixers (14)", person.folake, -1, "18:05"),
+    timesheet("TS-3", "Carpenters & formwork (11)", person.folake, -1, "18:06"),
+    timesheet("TS-4", "Finishing crew (12)", person.ibrahim, -1, "17:50"),
+    timesheet("TS-5", "Groundworks crew (9)", person.kunle, -1, "17:45"),
+    timesheet("TS-6", "Emeka Obi, crane operator", person.folake, -1, "18:07"),
+    timesheet("TS-7", "Yakubu Garba, plant operator", person.kunle, -1, "17:46"),
   ];
 
   const certifications: CertificationRecord[] = [
@@ -1235,7 +1518,7 @@ export function createSeed(now: Date): Db {
       title: "Folake Adeyemi raised PO-2026-0232 for your approval",
       createdAt: at(-1, "17:40"),
       read: false,
-      href: "/inventory",
+      href: "/inventory/orders",
     },
     {
       id: "ntf_4",
@@ -1278,12 +1561,37 @@ export function createSeed(now: Date): Db {
     siteReports,
     variationOrders,
     invoices,
+    stockItems,
+    locations,
     stock,
+    stockMovements,
+    suppliers,
+    purchasing,
+    materialRequests,
+    purchaseOrders,
+    sequences: { purchaseOrder: 233 },
     equipment,
-    approvals,
+    timesheets,
     certifications,
     developments,
     cashFlow,
     notifications,
   };
+}
+
+/**
+ * Subtotal, VAT and total for a purchase order's lines, to the kobo. The
+ * server works these out; a client's preview is only ever a preview.
+ */
+export function orderTotals(
+  lines: Pick<PurchaseOrderLine, "quantity" | "unitPrice">[],
+  vatRate: number,
+): Pick<PurchaseOrder, "subtotal" | "vat" | "total"> {
+  const toKobo = (amount: number) => Math.round(amount * 100);
+  const subtotal = lines.reduce(
+    (total, entry) => total + toKobo(entry.quantity * entry.unitPrice),
+    0,
+  );
+  const vat = Math.round(subtotal * vatRate);
+  return { subtotal: subtotal / 100, vat: vat / 100, total: (subtotal + vat) / 100 };
 }

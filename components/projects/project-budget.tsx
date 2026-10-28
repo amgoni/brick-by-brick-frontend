@@ -1,24 +1,20 @@
 "use client";
 
 import { useSuspenseQueries } from "@tanstack/react-query";
-import { Check, Download, FilePen, X } from "lucide-react";
-import { useLayoutEffect, useState } from "react";
+import { Download, FilePen } from "lucide-react";
+import {
+  ConfirmDecisionDialog,
+  DecisionButtons,
+  decided,
+  toastDecisionFailed,
+  useConfirmDecision,
+} from "@/components/approvals/decision";
 import { QueryBoundary } from "@/components/data/query-boundary";
 import { useProjectId } from "@/components/projects/project-link";
 import { VARIATION_STATUS } from "@/components/projects/project-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogBody,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   List,
@@ -39,8 +35,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@/components/ui/toast";
-import { ApiError } from "@/lib/api/client";
-import type { VariationOrderDecision } from "@/lib/api/projects";
 import type { BudgetLine, VariationOrder } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
 import { downloadCsv, type CsvColumn } from "@/lib/csv";
@@ -317,24 +311,31 @@ function impact(order: VariationOrder): string {
     : money;
 }
 
+/**
+ * Approving a variation order commits money, so it's confirmed first (see
+ * components/approvals/decision.tsx).
+ */
 function VariationOrderItem({ order, now }: { order: VariationOrder; now: Date }) {
-  const [decision, setDecision] = useState<VariationOrderDecision>("approve");
-  const [open, setOpen] = useState(false);
+  const { decision, open, setOpen, ask } = useConfirmDecision();
+  const decide = useDecideVariationOrder();
   const status = VARIATION_STATUS[order.status];
-
-  // A dialog left open shouldn't greet you when you come back to this page
-  // (it stays mounted while hidden), so close it as the page is hidden.
-  useLayoutEffect(() => () => setOpen(false), []);
-
-  const ask = (next: VariationOrderDecision) => {
-    setDecision(next);
-    setOpen(true);
-  };
 
   const by =
     order.decidedBy && order.decidedAt
       ? `${status.label} by ${order.decidedBy.name} · ${formatDateTime(order.decidedAt, now)}`
       : `Raised by ${order.raisedBy.name} · ${formatDateTime(order.raisedAt, now)}`;
+
+  const confirm = () =>
+    decide.mutate(
+      { id: order.id, decision },
+      {
+        onSuccess: (updated) => {
+          setOpen(false);
+          toast.success(`${updated.code} ${decided(decision)}`, { description: updated.title });
+        },
+        onError: (error) => toastDecisionFailed(order.code, decision, error),
+      },
+    );
 
   return (
     <ListItem className="flex-wrap items-start gap-x-3 gap-y-2.5">
@@ -346,91 +347,28 @@ function VariationOrderItem({ order, now }: { order: VariationOrder; now: Date }
         </ListItemDescription>
       </ListItemContent>
       {order.status === "pending" ? (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => ask("reject")}>
-            <X />
-            Reject
-          </Button>
-          <Button size="sm" onClick={() => ask("approve")}>
-            <Check />
-            Approve
-          </Button>
-        </div>
+        <DecisionButtons onDecide={ask} />
       ) : (
         <Badge tone={status.tone}>{status.label}</Badge>
       )}
-      <DecisionDialog order={order} decision={decision} open={open} onOpenChange={setOpen} />
+      <ConfirmDecisionDialog
+        open={open}
+        onOpenChange={setOpen}
+        decision={decision}
+        code={order.code}
+        description={order.title}
+        consequence={
+          decision === "approve"
+            ? `It adds ${formatMoney(order.amount)} to the contract sum${
+                order.timeImpactDays > 0
+                  ? ` and ${formatCount(order.timeImpactDays, "day")} to the programme`
+                  : ""
+              } of ${order.project.name}.`
+            : `The change won't go ahead as ${order.raisedBy.name} raised it.`
+        }
+        pending={decide.isPending}
+        onConfirm={confirm}
+      />
     </ListItem>
-  );
-}
-
-/**
- * Approving commits money, so it's confirmed first, and the dialog stays open
- * with the button busy until the server has agreed. If it refuses (someone
- * else decided first, say), the dialog stays put and says why.
- */
-function DecisionDialog({
-  order,
-  decision,
-  open,
-  onOpenChange,
-}: {
-  order: VariationOrder;
-  decision: VariationOrderDecision;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const decide = useDecideVariationOrder();
-  const approving = decision === "approve";
-
-  const confirm = () =>
-    decide.mutate(
-      { id: order.id, decision },
-      {
-        onSuccess: (updated) => {
-          onOpenChange(false);
-          toast.success(`${updated.code} ${approving ? "approved" : "rejected"}`, {
-            description: updated.title,
-          });
-        },
-        onError: (error) =>
-          toast.error(`${order.code} wasn't ${approving ? "approved" : "rejected"}`, {
-            description:
-              error instanceof ApiError ? error.message : "Something went wrong. Try again.",
-          }),
-      },
-    );
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => !decide.isPending && onOpenChange(next)}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {approving ? "Approve" : "Reject"} {order.code}?
-          </DialogTitle>
-          <DialogDescription>{order.title}</DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <p className="text-md text-ink-2">
-            {approving
-              ? `It adds ${formatMoney(order.amount)} to the contract sum${
-                  order.timeImpactDays > 0
-                    ? ` and ${formatCount(order.timeImpactDays, "day")} to the programme`
-                    : ""
-                } of ${order.project.name}.`
-              : `The change won't go ahead as ${order.raisedBy.name} raised it.`}{" "}
-            This can&apos;t be undone.
-          </p>
-        </DialogBody>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button disabled={decide.isPending}>Cancel</Button>
-          </DialogClose>
-          <Button variant="primary" loading={decide.isPending} onClick={confirm}>
-            {approving ? "Approve" : "Reject"} {order.code}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { SectionPlaceholder } from "@/components/layout/section-placeholder";
+import { StockOnHand } from "@/components/inventory/stock-on-hand";
 
 export const metadata: Metadata = { title: "Inventory" };
 
 export default function InventoryPage() {
-  return <SectionPlaceholder href="/inventory" />;
+  return <StockOnHand />;
 }

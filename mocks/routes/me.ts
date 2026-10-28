@@ -1,14 +1,15 @@
 import type { WorkspaceCounts } from "@/lib/api/types";
 import type { Router } from "../router";
+import { pendingApprovals } from "./dashboard";
 
 export function registerMeRoutes(router: Router) {
   router.get("/me", ({ db }) => db.currentUser);
 
   router.get("/me/counts", ({ db }): WorkspaceCounts => {
-    const pending = (kinds: string[]) => db.approvals.filter((a) => kinds.includes(a.kind)).length;
+    const pending = pendingApprovals(db);
     return {
-      inventory: pending(["material_request", "purchase_order"]),
-      staff: pending(["timesheet"]),
+      inventory: pending.material_request + pending.purchase_order,
+      staff: pending.timesheet,
       unreadNotifications: db.notifications.filter((n) => !n.read).length,
     };
   });

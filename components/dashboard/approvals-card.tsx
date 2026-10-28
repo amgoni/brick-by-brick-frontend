@@ -20,9 +20,19 @@ import { formatNumber } from "@/lib/format";
 import { useDashboardSummary } from "@/lib/queries/dashboard";
 
 const APPROVALS: { kind: ApprovalKind; label: string; icon: LucideIcon; href: string }[] = [
-  { kind: "material_request", label: "Material requests", icon: ClipboardList, href: "/inventory" },
+  {
+    kind: "material_request",
+    label: "Material requests",
+    icon: ClipboardList,
+    href: "/inventory/requests",
+  },
   { kind: "timesheet", label: "Timesheets", icon: Clock, href: "/staff" },
-  { kind: "purchase_order", label: "Purchase orders", icon: ShoppingCart, href: "/inventory" },
+  {
+    kind: "purchase_order",
+    label: "Purchase orders",
+    icon: ShoppingCart,
+    href: "/inventory/orders",
+  },
   { kind: "variation_order", label: "Variation orders", icon: FilePen, href: "/projects" },
 ];
 

@@ -14,10 +14,9 @@ import {
   type ListProjectsParams,
   type ListSiteReportsParams,
   type ListVariationOrdersParams,
-  type VariationOrderDecision,
 } from "@/lib/api/projects";
-import type { VariationOrder } from "@/lib/api/types";
-import { dashboardQueries } from "@/lib/queries/dashboard";
+import type { Decision, VariationOrder } from "@/lib/api/types";
+import { refreshApprovalCounts } from "@/lib/queries/dashboard";
 
 /**
  * Keys nest, so one call can invalidate a whole family:
@@ -114,7 +113,7 @@ export const useVariationOrders = (params?: ListVariationOrdersParams) =>
 export function useDecideVariationOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, decision }: { id: string; decision: VariationOrderDecision }) =>
+    mutationFn: ({ id, decision }: { id: string; decision: Decision }) =>
       decideVariationOrder(id, decision),
     onSuccess: (order) => {
       queryClient.setQueriesData<VariationOrder[]>(
@@ -125,7 +124,7 @@ export function useDecideVariationOrder() {
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: projectQueries.variationOrderLists() }),
-        queryClient.invalidateQueries({ queryKey: dashboardQueries.all() }),
+        refreshApprovalCounts(queryClient),
       ]),
   });
 }

@@ -33,10 +33,15 @@ import { NAV_ITEMS } from "@/lib/nav";
 import { MIN_SEARCH_LENGTH, searchQueries } from "@/lib/queries/search";
 import { useUiStore } from "@/store/ui.store";
 
-const CREATE_ACTIONS: { label: string; href: string; icon: LucideIcon }[] = [
+/** Each opens its form where there is one, and its section until then. */
+const CREATE_ACTIONS: { label: string; icon: LucideIcon; href?: string; run?: () => void }[] = [
   { label: "New invoice", href: "/invoices", icon: Receipt },
   { label: "New project", href: "/projects", icon: HardHat },
-  { label: "New purchase order", href: "/inventory", icon: Package },
+  {
+    label: "New purchase order",
+    icon: Package,
+    run: () => useUiStore.getState().openPurchaseOrder(),
+  },
   { label: "New daily site report", href: "/projects", icon: ClipboardPen },
 ];
 
@@ -127,7 +132,14 @@ function PaletteContent({ onClose }: { onClose: () => void }) {
               <CommandItem
                 key={action.label}
                 value={`create ${action.label}`}
-                onSelect={() => go(action.href)}
+                onSelect={() => {
+                  if (action.run) {
+                    onClose();
+                    action.run();
+                  } else if (action.href) {
+                    go(action.href);
+                  }
+                }}
               >
                 <Plus />
                 {action.label}

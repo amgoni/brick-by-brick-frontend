@@ -50,15 +50,21 @@ export function registerSearchRoutes(router: Router) {
         },
         text: `${e.name} ${e.code}`,
       })),
-      ...db.stock.map((s) => ({
-        result: {
-          kind: "stock_item" as const,
-          id: s.id,
-          title: s.name,
-          subtitle: `${s.sku} · ${s.location.name}`,
-        },
-        text: `${s.name} ${s.sku}`,
-      })),
+      ...db.stock.flatMap((level) => {
+        const item = db.stockItems.find((entry) => entry.id === level.itemId);
+        if (!item) return [];
+        return [
+          {
+            result: {
+              kind: "stock_item" as const,
+              id: level.id,
+              title: item.name,
+              subtitle: `${item.sku} · ${level.location.name}`,
+            },
+            text: `${item.name} ${item.sku}`,
+          },
+        ];
+      }),
       ...db.people.map((person) => ({
         result: {
           kind: "person" as const,

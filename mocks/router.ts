@@ -26,9 +26,21 @@ export interface MockRequest {
 
 /**
  * Return a value and it's sent as JSON with a 200. Return nothing and it's an
- * empty 204. Throw an HttpError for anything else.
+ * empty 204. Return a Response (see `created`) to choose the status yourself.
+ * Throw an HttpError for anything else.
  */
 type Handler = (request: MockRequest) => unknown;
+
+/**
+ * 201 Created: the new record as JSON, and in the Location header the URL it
+ * can be fetched from from now on.
+ */
+export function created(body: unknown, location: string): Response {
+  return Response.json(body, {
+    status: 201,
+    headers: { Location: `/api${location}`, "Cache-Control": "no-store" },
+  });
+}
 
 /** A deliberate error response: `throw new HttpError(404, "not_found", "…")`. */
 export class HttpError extends Error {
@@ -113,6 +125,7 @@ export function createRouter() {
         db: getDb(now),
         now,
       });
+      if (result instanceof Response) return result;
       if (result === undefined) {
         return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
       }

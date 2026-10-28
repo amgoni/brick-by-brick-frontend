@@ -11,10 +11,11 @@ run on a stand-in API inside this app that serves data in the same shape.
 
 ## Status
 
-- **Built:** the dashboard, and Projects & sites (the project list, and a page per project with
-  overview, schedule, daily reports, budget and team).
-- **Placeholder pages:** inventory, suppliers, equipment, staff, invoices, reports, properties,
-  clients, documents, users and roles, settings.
+- **Built:** the dashboard; Projects & sites (the project list, and a page per project with
+  overview, schedule, daily reports, budget and team); Inventory (stock on hand, material
+  requests, purchase orders with a new-order form, and stock movements).
+- **Placeholder pages:** suppliers, equipment, staff, invoices, reports, properties, clients,
+  documents, users and roles, settings.
 - **Not started:** sign-in, and the mobile field app.
 
 The designs are a Claude Design export kept locally in `notes/`, which isn't in the repository.

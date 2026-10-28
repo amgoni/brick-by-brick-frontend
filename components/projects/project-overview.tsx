@@ -3,7 +3,7 @@
 import { CalendarRange, CircleCheck, Package, Plus, Warehouse } from "lucide-react";
 import Link from "next/link";
 import { QueryBoundary } from "@/components/data/query-boundary";
-import { byUrgency, StockStateBadge } from "@/components/inventory/stock-status";
+import { byUrgency, StockStateBadge } from "@/components/inventory/inventory-status";
 import { useProjectId } from "@/components/projects/project-link";
 import { ISSUE_SEVERITY, PHASE_STATUS } from "@/components/projects/project-status";
 import { ProjectTabButton } from "@/components/projects/project-tabs";
@@ -31,7 +31,7 @@ import { ListSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { formatNumber, formatPercent, formatRelativeDay } from "@/lib/format";
 import { useProject, useProjectIssues, useProjectPhases } from "@/lib/queries/projects";
-import { useStockLevels } from "@/lib/queries/stock";
+import { useStockLevels } from "@/lib/queries/inventory";
 import { capitalize } from "@/lib/utils";
 
 /** A project's first tab: how each phase is going, what's wrong, what's on site. */
@@ -290,9 +290,9 @@ function Materials() {
 }
 
 function StoreStock({ storeId }: { storeId: string }) {
-  const { data: items } = useStockLevels({ locationId: storeId });
+  const { data: levels } = useStockLevels({ locationId: storeId });
 
-  if (items.length === 0) {
+  if (levels.length === 0) {
     return (
       <EmptyState
         icon={<Package />}
@@ -305,18 +305,18 @@ function StoreStock({ storeId }: { storeId: string }) {
 
   return (
     <List>
-      {[...items].sort(byUrgency).map((item) => (
-        <ListItem key={item.id}>
+      {[...levels].sort(byUrgency).map((level) => (
+        <ListItem key={level.id}>
           <ListItemContent>
-            <ListItemTitle>{item.name}</ListItemTitle>
+            <ListItemTitle>{level.item.name}</ListItemTitle>
             <ListItemDescription>
-              Reorder at {formatNumber(item.reorderLevel)} {item.unit}
+              Reorder at {formatNumber(level.reorderLevel)} {level.item.unit}
             </ListItemDescription>
           </ListItemContent>
           <span className="shrink-0 text-md font-medium tabular-nums">
-            {formatNumber(item.quantity, { decimals: 1 })} {item.unit}
+            {formatNumber(level.quantity, { decimals: 1 })} {level.item.unit}
           </span>
-          <StockStateBadge item={item} />
+          <StockStateBadge level={level} />
         </ListItem>
       ))}
     </List>

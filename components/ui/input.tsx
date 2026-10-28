@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useFieldControl } from "@/components/ui/field";
 import { cn } from "@/lib/cn";
+import { formatNumber } from "@/lib/format";
+import { parseNumber } from "@/lib/utils";
 
 /**
  * The look every text-like control shares (Input, Textarea, Select): a
@@ -109,4 +112,80 @@ export function InputGroupAddon({ className, ...props }: React.ComponentProps<"s
       {...props}
     />
   );
+}
+
+interface NumberInputProps extends Omit<
+  React.ComponentProps<"input">,
+  "type" | "value" | "defaultValue" | "onChange" | "inputMode" | "prefix"
+> {
+  /** The number as typed: "1250.5", or "" when empty. */
+  value: string;
+  onValueChange: (value: string) => void;
+  /** Digits allowed after the point; 0 for whole numbers. */
+  decimals?: number;
+  /** Before the number: "₦". */
+  prefix?: React.ReactNode;
+  /** After it: "bags". */
+  suffix?: React.ReactNode;
+}
+
+/**
+ * A number field that only takes a number. Keystrokes that would make it
+ * anything else (a letter, a second point, a third decimal) are refused, so
+ * there's nothing to correct later. While it has focus it shows what was
+ * typed; when it loses focus the thousands get their commas (12,500).
+ *
+ * The value stays a string while it's edited, because "12." is a fine thing
+ * to have typed on the way to "12.5". Turn it into a number with
+ * `parseNumber` (lib/utils) when the form is submitted.
+ */
+export function NumberInput({
+  value,
+  onValueChange,
+  decimals = 0,
+  prefix,
+  suffix,
+  className,
+  onFocus,
+  onBlur,
+  ...props
+}: NumberInputProps) {
+  const [focused, setFocused] = useState(false);
+  const pattern = new RegExp(`^\\d*${decimals > 0 ? `(\\.\\d{0,${decimals}})?` : ""}$`);
+  const inputProps = {
+    ...props,
+    type: "text",
+    inputMode: decimals > 0 ? ("decimal" as const) : ("numeric" as const),
+    autoComplete: "off",
+    value:
+      focused || parseNumber(value) === null ? value : formatNumber(Number(value), { decimals }),
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const next = event.target.value.replace(/[,\s]/g, "");
+      if (pattern.test(next)) onValueChange(next);
+    },
+    onFocus: (event: React.FocusEvent<HTMLInputElement>) => {
+      setFocused(true);
+      onFocus?.(event);
+    },
+    onBlur: (event: React.FocusEvent<HTMLInputElement>) => {
+      setFocused(false);
+      onBlur?.(event);
+    },
+  };
+
+  if (!prefix && !suffix) {
+    return <Input {...inputProps} className={cn("tabular-nums", className)} />;
+  }
+  return (
+    <InputGroup className={className}>
+      {prefix && <InputGroupAddon>{prefix}</InputGroupAddon>}
+      <InputGroupInput {...inputProps} className="tabular-nums" />
+      {suffix && <InputGroupAddon>{suffix}</InputGroupAddon>}
+    </InputGroup>
+  );
+}
+
+/** A naira amount, to the kobo. */
+export function MoneyInput(props: Omit<NumberInputProps, "prefix" | "decimals">) {
+  return <NumberInput prefix="₦" decimals={2} {...props} />;
 }

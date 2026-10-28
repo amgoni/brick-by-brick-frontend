@@ -89,8 +89,6 @@ function decide(
   order.status = status;
   order.decidedBy = { id: db.currentUser.id, name: db.currentUser.name };
   order.decidedAt = now.toISOString();
-  // Nobody is waiting on it any more.
-  db.approvals = db.approvals.filter((approval) => approval.id !== order.code);
   return order;
 }
 

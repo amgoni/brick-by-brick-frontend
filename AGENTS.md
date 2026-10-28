@@ -30,13 +30,14 @@ components/ui/          primitives, shadcn-style: one family per file, data-slot
 components/charts/      ColumnChart, StackedBar, GanttChart (built to the dataviz skill's spec)
 components/data/        QueryBoundary
 components/layout/      app shell: sidebar nav, top bar, mobile nav, menus, command palette
-components/<module>/    a module's screens and vocabulary (dashboard/, projects/, …)
+components/approvals/   approve / reject buttons and the confirm dialog, shared by every module
+components/<module>/    a module's screens and vocabulary (dashboard/, projects/, inventory/, …)
 hooks/                  client hooks (theme, media query, hotkey, debounce, isMac, stored state)
 lib/api/                the API contract (types.ts), the HTTP client, one file of calls per area
 lib/queries/            TanStack Query: query keys, options and hooks per area
 lib/                    cn.ts, csv.ts, format.ts, nav.ts, theme.ts, utils.ts
 mocks/                  the stand-in backend: Express-shaped router, routes, seed data
-store/                  zustand, for UI state only (the command palette)
+store/                  zustand, for UI state only (the command palette, the purchase order drawer)
 ```
 
 ## Data
@@ -56,9 +57,27 @@ store/                  zustand, for UI state only (the command palette)
 - Small collections (projects: tens, not thousands) load whole and filter in the browser. Long
   ones (stock, invoices) will filter and page on the server.
 - Exports are CSV built in the browser (`lib/csv.ts`) from raw values: naira, ISO dates.
-- Low-stakes writes are optimistic (notifications read). Writes that commit money confirm first
-  and wait for the server (approving a variation order).
+- Low-stakes writes are optimistic (notifications read). Decisions (approve / reject) wait for the
+  server, with `components/approvals/decision.tsx`; ones that commit money confirm first.
+  Anything that changes what's waiting for approval calls `refreshApprovalCounts`.
+- The server decides what a client could get wrong or fake: numbers (PO-2026-0234), totals,
+  who did it, whether it needs approval. Creates answer `201` with a `Location` header.
 - `MOCK_LATENCY_MS` and `MOCK_FAILURE_RATE` (see `.env.example`) exercise loading and error states.
+
+## Forms
+
+- The draft holds strings, as typed. A module's rule functions (pure, e.g.
+  `components/inventory/purchase-order-rules.ts`) check it on every submit and build the request
+  body. Blank optional fields are left out of the body, never sent as `""`.
+- Controls stop bad input first: a `Select` for anything with a fixed set of values (options
+  from the API), `NumberInput` / `MoneyInput` for numbers (they refuse letters), date inputs
+  bounded with `min`/`max`, `maxLength` on text.
+- A field's error shows under it (`Field`'s `error`) and clears as it's edited; on a failed
+  submit focus moves to the first one (`focusFirstInvalid`). When the server refuses, its message
+  shows in an `Alert` above the buttons. Field-by-field server errors wait on the backend's
+  error format.
+- A drawer that opens from anywhere (the new purchase order) is mounted in the app shell and
+  opened through `store/ui.store.ts`.
 
 ## Design system
 

@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
+import { PurchaseOrderSheet } from "@/components/inventory/purchase-order-sheet";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TopBar } from "@/components/layout/top-bar";
 
 /**
  * The frame around every signed-in page: the sidebar from the breakpoint up
- * (a drawer below it), the top bar, and the command palette.
+ * (a drawer below it), the top bar, the command palette, and the drawers
+ * that can be opened from anywhere (a new purchase order).
  *
  * It lives in a layout, so it isn't re-rendered or remounted on navigation;
  * only the page inside <main> changes.
@@ -40,6 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <CommandPalette />
+      <PurchaseOrderSheet />
     </div>
   );
 }

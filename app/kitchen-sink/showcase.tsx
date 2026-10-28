@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, Count, Tag, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, focusFirstInvalid } from "@/components/ui/field";
-import { Input, InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input";
+import {
+  Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  MoneyInput,
+  NumberInput,
+} from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import {
   List,
@@ -108,6 +116,7 @@ import {
 import { TabNav, TabNavLink, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import { Toggle } from "@/components/ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHotkey } from "@/hooks/use-hotkey";
 import { useIsMac } from "@/hooks/use-is-mac";
@@ -171,6 +180,9 @@ export function ComponentShowcase() {
   const [filter, setFilter] = useState("all");
   const [period, setPeriod] = useState("6");
   const [notify, setNotify] = useState(true);
+  const [price, setPrice] = useState("5850");
+  const [bags, setBags] = useState("");
+  const [belowOnly, setBelowOnly] = useState(true);
 
   return (
     <div className="flex flex-col gap-7">
@@ -300,15 +312,15 @@ export function ComponentShowcase() {
               <InputGroupInput type="search" placeholder="Search item or SKU" />
             </InputGroup>
           </Field>
-          <Field label="Unit price" hint="Excluding VAT">
-            <InputGroup>
-              <InputGroupAddon>₦</InputGroupAddon>
-              <InputGroupInput inputMode="decimal" defaultValue="5,850" className="tabular-nums" />
-              <InputGroupAddon>per bag</InputGroupAddon>
-            </InputGroup>
+          <Field label="Unit price" hint="MoneyInput: commas appear when it loses focus">
+            <MoneyInput value={price} onValueChange={setPrice} />
           </Field>
-          <Field label="Quantity" required error="Enter how many bags to order.">
-            <Input inputMode="numeric" placeholder="0" className="tabular-nums" />
+          <Field
+            label="Quantity"
+            required
+            error={bags ? undefined : "Enter how many bags to order."}
+          >
+            <NumberInput value={bags} onValueChange={setBags} suffix="bags" placeholder="0" />
           </Field>
           <Field label="Line total" hint="Worked out from quantity × price">
             <Input readOnly value={formatMoney(1_170_000)} className="tabular-nums" />
@@ -317,6 +329,25 @@ export function ComponentShowcase() {
             <Textarea placeholder="Delivery window, gate contact, offloading…" />
           </Field>
         </div>
+      </Group>
+
+      <Group title="Alerts · toggle">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Alert>Up to ₦5m, an order goes straight to the supplier.</Alert>
+          <Alert tone="warning">Over ₦5m, so Adaeze Okafor approves it first.</Alert>
+          <Alert tone="success" title="Stock count closed">
+            Maitama Court store matches the books.
+          </Alert>
+          <Alert tone="danger" title="The order wasn't sent">
+            Unity Timber &amp; Sawmill is blocked, so it can&rsquo;t be sent new orders.
+          </Alert>
+        </div>
+        <Row>
+          <Toggle pressed={belowOnly} onPressedChange={setBelowOnly} count={5}>
+            <TriangleAlert />
+            Below reorder level
+          </Toggle>
+        </Row>
       </Group>
 
       <Group title="Checkbox · switch">

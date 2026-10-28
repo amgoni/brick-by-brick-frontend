@@ -1,6 +1,7 @@
 import { apiFetch, type ApiRequest } from "@/lib/api/client";
 import type {
   BudgetLine,
+  Decision,
   Milestone,
   Project,
   ProjectDetail,
@@ -78,13 +79,11 @@ export function listVariationOrders(params: ListVariationOrdersParams = {}, opti
   return apiFetch<VariationOrder[]>("/variation-orders", { ...options, query: { ...params } });
 }
 
-export type VariationOrderDecision = "approve" | "reject";
-
 /**
  * POST /variation-orders/:id/approve (or /reject) → the updated order.
  * 409 if someone decided it first.
  */
-export function decideVariationOrder(id: string, decision: VariationOrderDecision) {
+export function decideVariationOrder(id: string, decision: Decision) {
   return apiFetch<VariationOrder>(`/variation-orders/${encodeURIComponent(id)}/${decision}`, {
     method: "POST",
   });
