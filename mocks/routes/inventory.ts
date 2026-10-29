@@ -4,7 +4,16 @@ import type {
   PurchaseOrderLine,
   StockLevel,
 } from "@/lib/api/types";
-import { created, HttpError, intParam, type Router } from "../router";
+import {
+  created,
+  HttpError,
+  intParam,
+  invalid,
+  isAmount,
+  isISODate,
+  isRecord,
+  type Router,
+} from "../router";
 import { orderTotals, type Db, type StockLevelRecord } from "../seed";
 import { lagosDay } from "../time";
 
@@ -20,17 +29,6 @@ function toStockLevel(db: Db, level: StockLevelRecord): StockLevel {
     reorderLevel: level.reorderLevel,
   };
 }
-
-/** Rejects the request with a 400 the form can show as it is. */
-function invalid(message: string): never {
-  throw new HttpError(400, "validation_failed", message);
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const isAmount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
 
 /**
  * Reads and checks the body of a new purchase order. The browser checks the
@@ -74,9 +72,7 @@ function readOrder(db: Db, body: unknown, today: string) {
   let expectedDelivery: string | null = null;
   if (body.expectedDelivery !== undefined) {
     const date = body.expectedDelivery;
-    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      invalid("Expected delivery must be a date, like 2026-10-30.");
-    }
+    if (!isISODate(date)) invalid("Expected delivery must be a date, like 2026-10-30.");
     if (date < today) invalid("Expected delivery can't be in the past.");
     expectedDelivery = date;
   }

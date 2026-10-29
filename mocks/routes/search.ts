@@ -1,5 +1,6 @@
 import type { SearchResult } from "@/lib/api/types";
 import { formatMoney } from "@/lib/format";
+import { invoiceTotals } from "../invoicing";
 import type { Router } from "../router";
 
 const LIMIT = 8;
@@ -37,7 +38,7 @@ export function registerSearchRoutes(router: Router) {
           kind: "invoice" as const,
           id: i.id,
           title: `${i.number} · ${i.client.name}`,
-          subtitle: `${i.reference} · ${formatMoney(i.amount)}`,
+          subtitle: `${i.reference} · ${formatMoney(invoiceTotals(i).total)}`,
         },
         text: `${i.number} ${i.client.name} ${i.reference}`,
       })),

@@ -53,6 +53,24 @@ export class HttpError extends Error {
   }
 }
 
+/** Rejects the request with a 400 the form can show as it is. */
+export function invalid(message: string): never {
+  throw new HttpError(400, "validation_failed", message);
+}
+
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+export const isAmount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+/** "2026-10-30", and a real day: not "2026-02-30". */
+export function isISODate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 interface Route {
   method: Method;
   pattern: RegExp;

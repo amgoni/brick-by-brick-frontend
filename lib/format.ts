@@ -241,15 +241,22 @@ export function formatMonthYearShort(input: DateInput): string {
   return `${part("month")} ’${part("year")}`;
 }
 
+const MONTH_STYLES = {
+  /** Oct */
+  short: { month: "short" },
+  /** October */
+  name: { month: "long" },
+  /** October 2026 */
+  long: { month: "long", year: "numeric" },
+} satisfies Record<string, Intl.DateTimeFormatOptions>;
+
 /**
- * A calendar month as the API sends it ("2026-10"): "Oct", or "October 2026"
- * with `style: "long"`. Read at noon on the 1st, so no time zone can tip it
- * into the month before.
+ * A calendar month as the API sends it ("2026-10"): "Oct", "October", or
+ * "October 2026". Read at noon on the 1st, so no time zone can tip it into
+ * the month before.
  */
-export function formatMonth(month: string, style: "short" | "long" = "short"): string {
-  const options: Intl.DateTimeFormatOptions =
-    style === "short" ? { month: "short" } : { month: "long", year: "numeric" };
-  return dateFormat(options).format(new Date(`${month}-01T12:00:00Z`));
+export function formatMonth(month: string, style: keyof typeof MONTH_STYLES = "short"): string {
+  return dateFormat(MONTH_STYLES[style]).format(new Date(`${month}-01T12:00:00Z`));
 }
 
 /** Good morning · Good afternoon · Good evening, by the hour in Lagos. */

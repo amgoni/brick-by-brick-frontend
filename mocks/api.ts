@@ -1,6 +1,8 @@
 import { createRouter } from "./router";
+import { registerClientRoutes } from "./routes/clients";
 import { registerDashboardRoutes } from "./routes/dashboard";
 import { registerInventoryRoutes } from "./routes/inventory";
+import { registerInvoiceRoutes } from "./routes/invoices";
 import { registerMeRoutes } from "./routes/me";
 import { registerProjectRoutes } from "./routes/projects";
 import { registerReportRoutes } from "./routes/reports";
@@ -21,5 +23,7 @@ registerDashboardRoutes(mockApi);
 registerProjectRoutes(mockApi);
 registerInventoryRoutes(mockApi);
 registerSupplierRoutes(mockApi);
+registerInvoiceRoutes(mockApi);
+registerClientRoutes(mockApi);
 registerReportRoutes(mockApi);
 registerSearchRoutes(mockApi);

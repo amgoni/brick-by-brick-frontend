@@ -35,7 +35,7 @@ import { useUiStore } from "@/store/ui.store";
 
 /** Each opens its form where there is one, and its section until then. */
 const CREATE_ACTIONS: { label: string; icon: LucideIcon; href?: string; run?: () => void }[] = [
-  { label: "New invoice", href: "/invoices", icon: Receipt },
+  { label: "New invoice", href: "/invoices/new", icon: Receipt },
   { label: "New project", href: "/projects", icon: HardHat },
   {
     label: "New purchase order",
@@ -51,7 +51,7 @@ const RECORDS: Record<
   { label: string; href: (id: string) => string; icon: LucideIcon }
 > = {
   project: { label: "Project", href: (id) => projectHref(id), icon: HardHat },
-  invoice: { label: "Invoice", href: () => "/invoices", icon: Receipt },
+  invoice: { label: "Invoice", href: (id) => `/invoices?invoice=${id}`, icon: Receipt },
   equipment: { label: "Equipment", href: () => "/equipment", icon: Forklift },
   stock_item: { label: "Stock item", href: () => "/inventory", icon: Package },
   person: { label: "Person", href: () => "/staff", icon: User },

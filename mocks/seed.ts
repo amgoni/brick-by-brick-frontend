@@ -1,13 +1,19 @@
 import type {
   BudgetLine,
   CashFlowMonth,
+  Client,
   CurrentUser,
+  InvoiceEvent,
+  InvoiceLine,
+  InvoicePayment,
+  InvoicingSettings,
   ISODate,
   ISODateTime,
   MaterialRequest,
   Milestone,
   Naira,
   Notification,
+  PaymentMethod,
   ProjectDetail,
   ProjectIssue,
   ProjectPhase,
@@ -25,7 +31,8 @@ import type {
   UnitStatus,
   VariationOrder,
 } from "@/lib/api/types";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatMonth } from "@/lib/format";
+import { invoiceTotals, paymentEvent } from "./invoicing";
 import { generateBudget, generatePhases } from "./programme";
 import { lagosAt, lagosDay, lagosMonth } from "./time";
 
@@ -48,18 +55,33 @@ import { lagosAt, lagosDay, lagosMonth } from "./time";
  */
 export type ProjectRecord = Omit<ProjectDetail, "committed" | "crewSplit">;
 
+/**
+ * An invoice as stored: what someone entered, and nothing that can be worked
+ * out from it. Its totals, balance, due date and status are calculated when
+ * it's read (mocks/invoicing.ts), so they can never disagree with its lines
+ * and payments.
+ */
 export interface InvoiceRecord {
   id: string;
   number: string;
   client: Ref;
   project: Ref | null;
   reference: string;
-  /** Null while it's a draft. */
-  issuedOn: ISODate | null;
-  dueOn: ISODate | null;
-  amount: Naira;
-  paid: Naira;
-  status: "draft" | "issued" | "void";
+  /** "draft" until it's sent; whether it's overdue or paid follows from its dates and payments. */
+  state: "draft" | "issued";
+  issuedOn: ISODate;
+  sendTo: string;
+  clientReference: string | null;
+  paymentTermsDays: number;
+  lines: Omit<InvoiceLine, "amount">[];
+  chargeVat: boolean;
+  vatRate: number;
+  retentionRate: number;
+  notes: string | null;
+  payments: InvoicePayment[];
+  /** Newest last, as they happened. */
+  activity: InvoiceEvent[];
+  createdBy: Ref;
 }
 
 /** How much of one catalogue item is at one store. */
@@ -122,7 +144,9 @@ export interface Db {
   milestones: Milestone[];
   siteReports: SiteReport[];
   variationOrders: VariationOrder[];
+  clients: Client[];
   invoices: InvoiceRecord[];
+  invoicing: InvoicingSettings;
   stockItems: StockItem[];
   locations: StockLocation[];
   stock: StockLevelRecord[];
@@ -131,8 +155,8 @@ export interface Db {
   purchasing: PurchasingSettings;
   materialRequests: MaterialRequest[];
   purchaseOrders: PurchaseOrder[];
-  /** The last number given out, per kind of document: PO-2026-0233. */
-  sequences: { purchaseOrder: number };
+  /** The last number given out, per kind of document: PO-2026-0233, INV-2026-0149. */
+  sequences: { purchaseOrder: number; invoice: number };
   equipment: EquipmentRecord[];
   timesheets: TimesheetRecord[];
   certifications: CertificationRecord[];
@@ -167,16 +191,73 @@ export function createSeed(now: Date): Db {
     yakubu: { id: "per_yakubu", name: "Yakubu Garba", role: "Plant operator" },
   } satisfies Record<string, PersonRecord>;
 
+  // From the Clients board.
   const client = {
-    crestview: { id: "cli_crestview", name: "Crestview Holdings Ltd" },
-    oyo: { id: "cli_oyo", name: "Oyo Retail Ventures Ltd" },
-    yabaLabs: { id: "cli_yabalabs", name: "Yaba Labs Ltd" },
-    harbourline: { id: "cli_harbourline", name: "Harbourline Partners" },
-    arewa: { id: "cli_arewa", name: "Arewa Capital Partners" },
-    ngoziOkonkwo: { id: "cli_nokonkwo", name: "Ngozi Okonkwo" },
-    ifeoma: { id: "cli_ichukwu", name: "Ifeoma Chukwu" },
-    emekaNwosu: { id: "cli_enwosu", name: "Emeka Nwosu" },
-  } satisfies Record<string, Ref>;
+    crestview: {
+      id: "cli_crestview",
+      name: "Crestview Holdings Ltd",
+      kind: "contract",
+      contact: "Bayo Akande, Head of Development",
+      email: "payables@crestview.example",
+      phone: "0803 554 2190",
+    },
+    oyo: {
+      id: "cli_oyo",
+      name: "Oyo Retail Ventures Ltd",
+      kind: "contract",
+      contact: "Kemi Adegoke, Projects Director",
+      email: "accounts@oyoretail.example",
+      phone: "0805 330 7712",
+    },
+    yabaLabs: {
+      id: "cli_yabalabs",
+      name: "Yaba Labs Ltd",
+      kind: "contract",
+      contact: "Seun Ogundipe, COO",
+      email: "ap@yabalabs.example",
+      phone: "0809 778 1025",
+    },
+    harbourline: {
+      id: "cli_harbourline",
+      name: "Harbourline Partners",
+      kind: "contract",
+      contact: "Ifeanyi Obi, Facilities manager",
+      email: "accounts@harbourline.example",
+      phone: "0802 640 3317",
+    },
+    arewa: {
+      id: "cli_arewa",
+      name: "Arewa Capital Partners",
+      kind: "buyer",
+      contact: "Hadiza Bello, Investment manager",
+      email: "finance@arewacap.example",
+      phone: "0803 912 6650",
+    },
+    ngoziOkonkwo: {
+      id: "cli_nokonkwo",
+      name: "Ngozi Okonkwo",
+      kind: "buyer",
+      contact: null,
+      email: "n.okonkwo@mail.example",
+      phone: "0806 221 9083",
+    },
+    ifeoma: {
+      id: "cli_ichukwu",
+      name: "Ifeoma Chukwu",
+      kind: "buyer",
+      contact: null,
+      email: "ifeoma.c@mail.example",
+      phone: "0802 118 4426",
+    },
+    emekaNwosu: {
+      id: "cli_enwosu",
+      name: "Emeka Nwosu",
+      kind: "buyer",
+      contact: null,
+      email: "emeka.nwosu@mail.example",
+      phone: "0807 455 2961",
+    },
+  } satisfies Record<string, Client>;
 
   /** Stores: one on each site with materials, and the central yard. */
   const store = {
@@ -838,128 +919,452 @@ export function createSeed(now: Date): Db {
     },
   ];
 
+  /*
+   * Invoices. What's stored is what someone entered: lines, rates, terms and
+   * payments. Totals, balances, due dates and statuses are worked out when
+   * they're read (mocks/invoicing.ts), so the six unpaid ones come to the
+   * dashboard's ₦412.6m because their lines do.
+   */
+  const vatRate = 0.075;
+  // A building contract's valuations carry VAT, and the client holds back 5%
+  // until handover. Homes are sold without VAT, so instalments carry neither.
+  const valuation = { chargeVat: true, retentionRate: 0.05 };
+  const noTax = { chargeVat: false, retentionRate: 0 };
+  const prelims = (offset: number) =>
+    `Preliminaries: ${formatMonth(day(offset).slice(0, 7), "long")}`;
+
+  interface InvoiceSeed {
+    number: number;
+    client: Client;
+    /** A project code. */
+    project: string | null;
+    reference: string;
+    /** Days from today. */
+    issued: number;
+    terms: number;
+    billing: { chargeVat: boolean; retentionRate: number };
+    lines: [description: string, quantity: number, unit: string, rate: Naira][];
+    clientReference?: string;
+    notes?: string;
+    /** Still a draft, created the day before. Otherwise it was sent on the day it's dated. */
+    draft?: boolean;
+    /** Leave out `amount` for whatever's still owed. */
+    payments?: { on: number; amount?: Naira; method?: PaymentMethod; reference?: string }[];
+    /** What else happened to it, besides being drafted, sent and paid. */
+    events?: { at: ISODateTime; title: string; by?: PersonRecord; detail?: string }[];
+  }
+
+  const invoice = (seed: InvoiceSeed): InvoiceRecord => {
+    const code = String(seed.number).padStart(4, "0");
+    const id = `inv_${code}`;
+    const by = ref(person.ngozi);
+    const record: InvoiceRecord = {
+      id,
+      number: `INV-2026-${code}`,
+      client: ref(seed.client),
+      project: seed.project ? p(seed.project) : null,
+      reference: seed.reference,
+      state: seed.draft ? "draft" : "issued",
+      issuedOn: day(seed.issued),
+      sendTo: seed.client.email,
+      clientReference: seed.clientReference ?? null,
+      paymentTermsDays: seed.terms,
+      lines: seed.lines.map(([description, quantity, unit, rate], index) => ({
+        id: `${id}_${index + 1}`,
+        description,
+        quantity,
+        unit,
+        rate,
+      })),
+      vatRate,
+      ...seed.billing,
+      notes: seed.notes ?? null,
+      payments: [],
+      activity: [],
+      createdBy: by,
+    };
+
+    const events: InvoiceEvent[] = (seed.events ?? []).map((event) => ({
+      id: "",
+      at: event.at,
+      title: event.title,
+      by: event.by ? ref(event.by) : null,
+      detail: event.detail ?? null,
+    }));
+    if (seed.draft) {
+      events.push({
+        id: "",
+        at: at(seed.issued - 1, "16:10"),
+        title: `Draft created from ${seed.reference}`,
+        by,
+        detail: null,
+      });
+    } else {
+      events.push({
+        id: "",
+        at: at(seed.issued, "10:00"),
+        title: `Sent to ${record.sendTo}`,
+        by,
+        detail: null,
+      });
+    }
+
+    let owed = invoiceTotals(record).total;
+    for (const [index, entry] of (seed.payments ?? []).entries()) {
+      const payment: InvoicePayment = {
+        id: `pay_${code}_${index + 1}`,
+        amount: entry.amount ?? owed,
+        receivedOn: day(entry.on),
+        method: entry.method ?? "bank_transfer",
+        reference: entry.reference ?? null,
+        recordedBy: by,
+      };
+      owed -= payment.amount;
+      record.payments.push(payment);
+      events.push({ id: "", at: at(entry.on, "11:20"), ...paymentEvent(payment, owed <= 0) });
+    }
+
+    record.activity = events
+      .sort((a, b) => a.at.localeCompare(b.at))
+      .map((event, index) => ({ ...event, id: `${id}_e${index + 1}` }));
+    return record;
+  };
+
   const invoices: InvoiceRecord[] = [
-    {
-      id: "inv_0149",
-      number: "INV-2026-0149",
-      client: ref(client.oyo),
-      project: p("IRP"),
+    invoice({
+      number: 149,
+      client: client.oyo,
+      project: "IRP",
       reference: "Valuation 3",
-      issuedOn: null,
-      dueOn: null,
-      amount: 65_036_250,
-      paid: 0,
-      status: "draft",
-    },
-    {
-      id: "inv_0147",
-      number: "INV-2026-0147",
-      client: ref(client.crestview),
-      project: p("ICT"),
+      issued: 0,
+      terms: 30,
+      billing: valuation,
+      lines: [
+        ["Valuation 3: substructure, pile caps and ground beams", 1, "item", 46_500_000],
+        ["Materials on site: rebar 16mm", 12, "t", 1_050_000],
+        [prelims(0), 1, "month", 4_350_000],
+      ],
+      clientReference: "ORV-PO-0088",
+      notes: `Valuation 3 certified by the client’s QS on ${formatDate(day(-2))}. Retention is released 50% at practical completion and 50% after the defects period.`,
+      draft: true,
+    }),
+    invoice({
+      number: 147,
+      client: client.crestview,
+      project: "ICT",
       reference: "Valuation 6",
-      issuedOn: day(-7),
-      dueOn: day(23),
-      amount: 198_620_000,
-      paid: 0,
-      status: "issued",
-    },
-    {
-      id: "inv_0146",
-      number: "INV-2026-0146",
-      client: ref(client.ngoziOkonkwo),
-      project: p("LPR"),
+      issued: -7,
+      terms: 30,
+      billing: valuation,
+      lines: [
+        ["Valuation 6: superstructure, levels 9 to 11", 1, "item", 180_000_000],
+        ["Materials on site: formwork and rebar", 1, "item", 13_775_609.76],
+      ],
+      clientReference: "CVH-ICT-PO-114",
+      events: [{ at: at(-6, "09:12"), title: "Viewed by client" }],
+    }),
+    invoice({
+      number: 146,
+      client: client.ngoziOkonkwo,
+      project: "LPR",
       reference: "Unit B-07, instalment 3 of 4",
-      issuedOn: day(-12),
-      dueOn: day(18),
-      amount: 46_250_000,
-      paid: 0,
-      status: "issued",
-    },
-    {
-      id: "inv_0145",
-      number: "INV-2026-0145",
-      client: ref(client.arewa),
-      project: p("MTC"),
+      issued: -12,
+      terms: 30,
+      billing: noTax,
+      lines: [["Unit B-07, instalment 3 of 4 (25% of ₦185,000,000)", 1, "item", 46_250_000]],
+    }),
+    invoice({
+      number: 145,
+      client: client.arewa,
+      project: "MTC",
       reference: "Terraces T7–T8, instalment 2",
-      issuedOn: day(-17),
-      dueOn: day(13),
-      amount: 72_400_000,
-      paid: 33_500_000,
-      status: "issued",
-    },
-    {
-      id: "inv_0144",
-      number: "INV-2026-0144",
-      client: ref(client.yabaLabs),
-      project: p("YTH"),
+      issued: -17,
+      terms: 30,
+      billing: noTax,
+      lines: [
+        ["Terrace T7, instalment 2", 1, "item", 36_200_000],
+        ["Terrace T8, instalment 2", 1, "item", 36_200_000],
+      ],
+      payments: [{ on: -9, amount: 33_500_000, reference: "ACP-2210" }],
+      events: [{ at: at(-16, "14:32"), title: "Viewed by client" }],
+    }),
+    invoice({
+      number: 144,
+      client: client.yabaLabs,
+      project: "YTH",
       reference: "Valuation 1",
-      issuedOn: day(-21),
-      dueOn: day(9),
-      amount: 29_930_000,
-      paid: 0,
-      status: "issued",
-    },
-    {
-      id: "inv_0143",
-      number: "INV-2026-0143",
-      client: ref(client.crestview),
-      project: p("ICT"),
+      issued: -21,
+      terms: 30,
+      billing: valuation,
+      lines: [
+        ["Valuation 1: strip-out, partitions and ceilings", 1, "item", 26_400_000],
+        [prelims(-21), 1, "month", 2_800_000],
+      ],
+    }),
+    invoice({
+      number: 143,
+      client: client.crestview,
+      project: "ICT",
       reference: "Valuation 5",
-      issuedOn: day(-35),
-      dueOn: day(-5),
-      amount: 176_300_000,
-      paid: 176_300_000,
-      status: "issued",
-    },
-    {
-      id: "inv_0141",
-      number: "INV-2026-0141",
-      client: ref(client.harbourline),
-      project: p("VIR"),
+      issued: -35,
+      terms: 30,
+      billing: valuation,
+      lines: [
+        ["Valuation 5: superstructure, levels 6 to 8", 1, "item", 160_000_000],
+        [prelims(-35), 1, "month", 12_000_000],
+      ],
+      payments: [{ on: -5, reference: "CVH-TRF-88213" }],
+    }),
+    invoice({
+      number: 141,
+      client: client.harbourline,
+      project: "VIR",
       reference: "Final account",
-      issuedOn: day(-25),
-      dueOn: day(-11),
-      amount: 23_100_000,
-      paid: 23_100_000,
-      status: "issued",
-    },
-    {
-      id: "inv_0140",
-      number: "INV-2026-0140",
-      client: ref(client.ifeoma),
-      project: p("LPR"),
+      issued: -25,
+      terms: 14,
+      billing: noTax,
+      lines: [
+        ["Final account: agreed variations", 1, "item", 11_100_000],
+        ["Release of retention (5% of ₦240,000,000)", 1, "item", 12_000_000],
+      ],
+      payments: [{ on: -11, reference: "HLP-0412" }],
+    }),
+    invoice({
+      number: 140,
+      client: client.ifeoma,
+      project: "LPR",
       reference: "Unit A-03, instalment 2 of 4",
-      issuedOn: day(-26),
-      dueOn: day(-12),
-      amount: 46_250_000,
-      paid: 46_250_000,
-      status: "issued",
-    },
-    {
-      id: "inv_0138",
-      number: "INV-2026-0138",
-      client: ref(client.emekaNwosu),
-      project: p("MTC"),
+      issued: -26,
+      terms: 14,
+      billing: noTax,
+      lines: [["Unit A-03, instalment 2 of 4 (25% of ₦185,000,000)", 1, "item", 46_250_000]],
+      payments: [{ on: -19 }],
+    }),
+    invoice({
+      number: 138,
+      client: client.emekaNwosu,
+      project: "MTC",
       reference: "Terrace T6, final payment",
-      issuedOn: day(-27),
-      dueOn: day(-13),
-      amount: 12_500_000,
-      paid: 0,
-      status: "issued",
-    },
-    {
-      id: "inv_0131",
-      number: "INV-2026-0131",
-      client: ref(client.crestview),
-      project: p("ICT"),
+      issued: -26,
+      terms: 14,
+      billing: noTax,
+      lines: [["Terrace T6, final payment", 1, "item", 12_500_000]],
+      events: [
+        {
+          at: at(-7, "12:30"),
+          title: "Buyer promised to pay by the end of the month",
+          by: person.ngozi,
+          detail: "Call",
+        },
+      ],
+    }),
+    invoice({
+      number: 131,
+      client: client.crestview,
+      project: "ICT",
       reference: "Variations VO-009, VO-010",
-      issuedOn: day(-42),
-      dueOn: day(-12),
-      amount: 86_400_000,
-      paid: 0,
-      status: "issued",
-    },
+      issued: -42,
+      terms: 30,
+      billing: noTax,
+      lines: [
+        ["VO-009: additional basement waterproofing", 1, "item", 51_200_000],
+        ["VO-010: lift lobby finishes upgrade", 1, "item", 35_200_000],
+      ],
+      events: [
+        {
+          at: at(-11, "09:00"),
+          title: "Reminder sent to payables@crestview.example",
+          by: person.ngozi,
+        },
+        {
+          at: at(-11, "15:20"),
+          title: "Client disputes VO-010 quantities",
+          by: person.folake,
+          detail: `Call. A joint site measure is booked for ${formatDate(day(1), "short")}.`,
+        },
+        {
+          at: at(-6, "10:05"),
+          title: "Second reminder sent to payables@crestview.example",
+          by: person.ngozi,
+        },
+      ],
+    }),
+    // Older ones, all paid, so the list has more than one page.
+    invoice({
+      number: 130,
+      client: client.harbourline,
+      project: "VIR",
+      reference: "Valuation 6",
+      issued: -44,
+      terms: 14,
+      billing: valuation,
+      lines: [["Valuation 6: services second fix and ceilings", 1, "item", 28_000_000]],
+      payments: [{ on: -31, reference: "HLP-0377" }],
+    }),
+    invoice({
+      number: 129,
+      client: client.ngoziOkonkwo,
+      project: "LPR",
+      reference: "Unit B-07, instalment 2 of 4",
+      issued: -47,
+      terms: 30,
+      billing: noTax,
+      lines: [["Unit B-07, instalment 2 of 4 (25% of ₦185,000,000)", 1, "item", 46_250_000]],
+      payments: [{ on: -20 }],
+    }),
+    invoice({
+      number: 128,
+      client: client.oyo,
+      project: "IRP",
+      reference: "Valuation 2",
+      issued: -50,
+      terms: 30,
+      billing: valuation,
+      lines: [
+        ["Valuation 2: piling", 1, "item", 186_000_000],
+        [prelims(-50), 1, "month", 4_350_000],
+      ],
+      payments: [{ on: -22, reference: "ORV-PAY-2291" }],
+    }),
+    invoice({
+      number: 127,
+      client: client.emekaNwosu,
+      project: "MTC",
+      reference: "Terrace T6, instalment 3",
+      issued: -53,
+      terms: 14,
+      billing: noTax,
+      lines: [["Terrace T6, instalment 3", 1, "item", 60_000_000]],
+      payments: [{ on: -41, method: "cheque", reference: "004417" }],
+    }),
+    invoice({
+      number: 126,
+      client: client.arewa,
+      project: "MTC",
+      reference: "Terraces T7–T8, instalment 1",
+      issued: -56,
+      terms: 30,
+      billing: noTax,
+      lines: [
+        ["Terrace T7, instalment 1", 1, "item", 120_000_000],
+        ["Terrace T8, instalment 1", 1, "item", 120_000_000],
+      ],
+      payments: [{ on: -30, reference: "ACP-2147" }],
+    }),
+    invoice({
+      number: 125,
+      client: client.harbourline,
+      project: "VIR",
+      reference: "Valuation 5",
+      issued: -59,
+      terms: 14,
+      billing: valuation,
+      lines: [["Valuation 5: partitions and raised floors", 1, "item", 34_000_000]],
+      payments: [{ on: -46, reference: "HLP-0351" }],
+    }),
+    invoice({
+      number: 124,
+      client: client.ifeoma,
+      project: "LPR",
+      reference: "Unit A-03, instalment 1 of 4",
+      issued: -62,
+      terms: 14,
+      billing: noTax,
+      lines: [["Unit A-03, instalment 1 of 4 (25% of ₦185,000,000)", 1, "item", 46_250_000]],
+      payments: [{ on: -50 }],
+    }),
+    invoice({
+      number: 123,
+      client: client.crestview,
+      project: "ICT",
+      reference: "Valuation 4",
+      issued: -65,
+      terms: 30,
+      billing: valuation,
+      lines: [
+        ["Valuation 4: superstructure, levels 3 to 5", 1, "item", 154_000_000],
+        [prelims(-65), 1, "month", 12_000_000],
+      ],
+      payments: [{ on: -38, reference: "CVH-TRF-87406" }],
+    }),
+    invoice({
+      number: 122,
+      client: client.ngoziOkonkwo,
+      project: "LPR",
+      reference: "Unit B-07, instalment 1 of 4",
+      issued: -68,
+      terms: 14,
+      billing: noTax,
+      lines: [["Unit B-07, instalment 1 of 4 (25% of ₦185,000,000)", 1, "item", 46_250_000]],
+      payments: [{ on: -60 }],
+    }),
+    invoice({
+      number: 121,
+      client: client.harbourline,
+      project: "VIR",
+      reference: "Valuation 4",
+      issued: -71,
+      terms: 14,
+      billing: valuation,
+      lines: [["Valuation 4: strip-out and first fix", 1, "item", 41_000_000]],
+      payments: [{ on: -58, reference: "HLP-0322" }],
+    }),
+    invoice({
+      number: 120,
+      client: client.emekaNwosu,
+      project: "MTC",
+      reference: "Terrace T6, instalment 2",
+      issued: -74,
+      terms: 14,
+      billing: noTax,
+      lines: [["Terrace T6, instalment 2", 1, "item", 60_000_000]],
+      payments: [{ on: -63, method: "cheque", reference: "004402" }],
+    }),
+    invoice({
+      number: 119,
+      client: client.oyo,
+      project: "IRP",
+      reference: "Valuation 1",
+      issued: -77,
+      terms: 30,
+      billing: valuation,
+      lines: [
+        ["Valuation 1: site clearance and enabling works", 1, "item", 96_000_000],
+        ["Mobilisation", 1, "item", 25_000_000],
+      ],
+      payments: [{ on: -45, reference: "ORV-PAY-2188" }],
+    }),
+    invoice({
+      number: 118,
+      client: client.crestview,
+      project: "ICT",
+      reference: "Valuation 3",
+      issued: -80,
+      terms: 30,
+      billing: valuation,
+      lines: [
+        ["Valuation 3: superstructure, levels 1 and 2", 1, "item", 138_000_000],
+        [prelims(-80), 1, "month", 12_000_000],
+      ],
+      payments: [{ on: -52, reference: "CVH-TRF-86655" }],
+    }),
   ];
+
+  const invoicing: InvoicingSettings = {
+    vatRate,
+    paymentTerms: [7, 14, 30, 45],
+    defaultPaymentTermsDays: 30,
+    retentionRates: [0, 0.05, 0.1],
+    // Left for the company to fill in under Settings, as the design does.
+    company: {
+      tradingName: "Brick By Brick",
+      legalName: null,
+      rcNumber: null,
+      tin: null,
+      address: null,
+      bank: null,
+    },
+  };
 
   // The catalogue: what the company stocks, valued at the last price paid.
   const itemRows: [string, string, string, string, Naira][] = [
@@ -1504,7 +1909,7 @@ export function createSeed(now: Date): Db {
       title: "INV-2026-0131 is 12 days overdue · Crestview Holdings Ltd",
       createdAt: at(0, "08:00"),
       read: false,
-      href: "/invoices",
+      href: "/invoices?invoice=inv_0131",
     },
     {
       id: "ntf_2",
@@ -1539,7 +1944,7 @@ export function createSeed(now: Date): Db {
       title: "Crestview Holdings Ltd paid INV-2026-0143 in full",
       createdAt: at(-5, "11:20"),
       read: true,
-      href: "/invoices",
+      href: "/invoices?invoice=inv_0143",
     },
   ];
 
@@ -1560,7 +1965,9 @@ export function createSeed(now: Date): Db {
     milestones,
     siteReports,
     variationOrders,
+    clients: Object.values(client),
     invoices,
+    invoicing,
     stockItems,
     locations,
     stock,
@@ -1569,7 +1976,7 @@ export function createSeed(now: Date): Db {
     purchasing,
     materialRequests,
     purchaseOrders,
-    sequences: { purchaseOrder: 233 },
+    sequences: { purchaseOrder: 233, invoice: 149 },
     equipment,
     timesheets,
     certifications,

@@ -24,6 +24,7 @@ module's endpoints exist, its screens run on mock data shaped like the future AP
 ```
 app/                    routes and layouts; globals.css holds the design tokens
 app/(app)/              everything inside the app shell (route group: adds nothing to URLs)
+app/(print)/            pages with no shell: an invoice to print or save as a PDF
 app/api/[...path]/      the mock backend's entry point (becomes a proxy to Express later)
 app/kitchen-sink/       every token and primitive in both themes: check design-system changes here
 components/ui/          primitives, shadcn-style: one family per file, data-slot attrs, cn(), cva, Radix
@@ -55,8 +56,16 @@ store/                  zustand, for UI state only (the command palette, the pur
 - Several queries in one component: `useSuspenseQueries`. Consecutive `useSuspenseQuery` calls
   run one after another, because each suspends before the next starts.
 - Small collections (projects: tens, not thousands) load whole and filter in the browser. Long
-  ones (stock, invoices) will filter and page on the server.
-- Exports are CSV built in the browser (`lib/csv.ts`) from raw values: naira, ISO dates.
+  ones filter and page on the server: `GET /invoices` answers a `Page<T>` of items, a total and a
+  `nextCursor` (a proposal awaiting review), read with `useSuspenseInfiniteQuery` and a Load more
+  button. Stock will follow.
+- Exports are CSV from raw values (naira, ISO dates). A list that loads whole builds it in the
+  browser (`lib/csv.ts`); a paged one asks the server (`GET /invoices/export.csv`), since the
+  browser only holds the pages it has loaded.
+- A list's filter and an open record can live in the URL (`/invoices?status=overdue&invoice=…`),
+  so they can be linked to. Change them with `window.history.replaceState`, which Next keeps
+  `useSearchParams` in step with, without a navigation. `useSearchParams` suspends during
+  prerender like `useParams`: call it inside a QueryBoundary or BrowserOnly.
 - Low-stakes writes are optimistic (notifications read). Decisions (approve / reject) wait for the
   server, with `components/approvals/decision.tsx`; ones that commit money confirm first.
   Anything that changes what's waiting for approval calls `refreshApprovalCounts`.
@@ -67,8 +76,9 @@ store/                  zustand, for UI state only (the command palette, the pur
 ## Forms
 
 - The draft holds strings, as typed. A module's rule functions (pure, e.g.
-  `components/inventory/purchase-order-rules.ts`) check it on every submit and build the request
-  body. Blank optional fields are left out of the body, never sent as `""`.
+  `components/inventory/purchase-order-rules.ts`, `components/invoices/invoice-rules.ts`) check it
+  on every submit and build the request body. Blank optional fields are left out of the body,
+  never sent as `""`. Totals a form previews are worked the server's way, to the kobo.
 - Controls stop bad input first: a `Select` for anything with a fixed set of values (options
   from the API), `NumberInput` / `MoneyInput` for numbers (they refuse letters), date inputs
   bounded with `min`/`max`, `maxLength` on text.
@@ -110,7 +120,11 @@ store/                  zustand, for UI state only (the command palette, the pur
 - Dynamic segments (`/projects/[id]`) have no `generateStaticParams`: the ids live behind the
   API, so the build prerenders one shell for every id. While it does, `usePathname` and
   `useParams` suspend, so call them only inside Suspense (BrowserOnly or a QueryBoundary) or the
-  build fails, even from a layout (see `SidebarNav`, `ProjectTabs`, `useProjectId`).
+  build fails, even from a layout (see `SidebarNav`, `ProjectTabs`).
+- Read a segment's value with `useRouteParam` (`components/data/route-params.tsx`), not
+  `useParams`. The segment's layout or page passes its own `params` down in `<RouteParams>`.
+  `useParams` answers for the page that's showing, so a kept-alive page would read another
+  route's params and fetch `/api/projects/undefined` (then show "not found" when you go back).
 - Navigation keeps recent pages mounted (`<Activity>`), so state survives a round trip. Close
   transient UI (menus, popovers) when a page is hidden; see Next's "Preserving UI state" guide.
 - Exact-pinned dependencies (`.npmrc` has `save-exact`), and no version published in the last

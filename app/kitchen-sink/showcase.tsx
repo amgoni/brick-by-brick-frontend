@@ -115,6 +115,7 @@ import {
 } from "@/components/ui/table";
 import { TabNav, TabNavLink, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Timeline, TimelineItem, TimelineMeta, TimelineTitle } from "@/components/ui/timeline";
 import { toast } from "@/components/ui/toast";
 import { Toggle } from "@/components/ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -529,6 +530,28 @@ export function ComponentShowcase() {
               <DescriptionItem label="Hours">4,812</DescriptionItem>
               <DescriptionItem label="Next service">at 5,000 h</DescriptionItem>
             </DescriptionList>
+          </CardContent>
+        </Card>
+      </Group>
+
+      <Group title="Timeline">
+        <Card>
+          <CardContent>
+            <Timeline>
+              <TimelineItem>
+                <TimelineTitle>Second reminder sent to payables@crestview.example</TimelineTitle>
+                <TimelineMeta>22 Oct, 10:05 AM · Ngozi Ume</TimelineMeta>
+              </TimelineItem>
+              <TimelineItem>
+                <TimelineTitle>Client disputes VO-010 quantities</TimelineTitle>
+                <TimelineMeta>17 Oct, 3:20 PM · Folake Adeyemi</TimelineMeta>
+                <p className="text-sm text-ink-2">Call. A joint site measure is booked.</p>
+              </TimelineItem>
+              <TimelineItem>
+                <TimelineTitle>Sent to payables@crestview.example</TimelineTitle>
+                <TimelineMeta>16 Sept, 10:00 AM · Ngozi Ume</TimelineMeta>
+              </TimelineItem>
+            </Timeline>
           </CardContent>
         </Card>
       </Group>

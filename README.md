@@ -13,9 +13,10 @@ run on a stand-in API inside this app that serves data in the same shape.
 
 - **Built:** the dashboard; Projects & sites (the project list, and a page per project with
   overview, schedule, daily reports, budget and team); Inventory (stock on hand, material
-  requests, purchase orders with a new-order form, and stock movements).
-- **Placeholder pages:** suppliers, equipment, staff, invoices, reports, properties, clients,
-  documents, users and roles, settings.
+  requests, purchase orders with a new-order form, and stock movements); Invoices (the list,
+  payments and reminders, the invoice builder, and a print page that saves as a PDF).
+- **Placeholder pages:** suppliers, equipment, staff, reports, properties, clients, documents,
+  users and roles, settings.
 - **Not started:** sign-in, and the mobile field app.
 
 The designs are a Claude Design export kept locally in `notes/`, which isn't in the repository.
@@ -29,7 +30,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:3000. Worth a look: `/` (the dashboard), `/projects`, and
+Then open http://localhost:3000. Worth a look: `/` (the dashboard), `/projects`, `/invoices`, and
 `/kitchen-sink`, which shows every design token and component in both themes.
 
 The stand-in API needs no setup. To see slow or failing requests, copy `.env.example` to

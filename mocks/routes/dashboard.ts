@@ -1,13 +1,10 @@
 import type { ApprovalKind, AttentionItem, DashboardSummary, UnitStatus } from "@/lib/api/types";
 import type { Router } from "../router";
-import type { Db, InvoiceRecord } from "../seed";
+import { balanceOf, dueOn } from "../invoicing";
+import type { Db } from "../seed";
 import { lagosDay } from "../time";
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
-
-/** What the client still owes. Drafts and void invoices owe nothing. */
-export const balanceOf = (invoice: InvoiceRecord) =>
-  invoice.status === "issued" ? invoice.amount - invoice.paid : 0;
 
 /**
  * What's waiting for a decision, counted from the records themselves, so
@@ -30,7 +27,7 @@ export function registerDashboardRoutes(router: Router) {
 
     const open = db.invoices.filter((invoice) => balanceOf(invoice) > 0);
     // ISO dates compare correctly as strings: "2026-10-14" < "2026-10-27".
-    const overdue = open.filter((invoice) => invoice.dueOn !== null && invoice.dueOn < today);
+    const overdue = open.filter((invoice) => dueOn(invoice) < today);
 
     const attention: AttentionItem[] = [];
 
@@ -54,14 +51,14 @@ export function registerDashboardRoutes(router: Router) {
 
     // The one with the most money at stake.
     const worst = [...overdue].sort((a, b) => balanceOf(b) - balanceOf(a))[0];
-    if (worst?.dueOn) {
+    if (worst) {
       attention.push({
         kind: "overdue_invoice",
         id: `overdue_invoice:${worst.id}`,
         invoice: { id: worst.id, number: worst.number },
         client: worst.client,
         balance: balanceOf(worst),
-        dueDate: worst.dueOn,
+        dueDate: dueOn(worst),
       });
     }
 

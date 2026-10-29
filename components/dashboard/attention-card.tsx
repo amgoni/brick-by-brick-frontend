@@ -143,7 +143,7 @@ function describeAttention(item: AttentionItem, now: Date): AttentionView {
         tone: "danger",
         title: `${item.invoice.number} is ${formatCount(days, "day")} overdue`,
         description: `${item.client.name} · ${formatMoney(item.balance)}`,
-        action: { label: "Chase", href: "/invoices" },
+        action: { label: "Chase", href: `/invoices?invoice=${item.invoice.id}` },
       };
     }
     case "service_due":

@@ -391,6 +391,194 @@ export interface StockMovement {
 }
 
 // ---------------------------------------------------------------------------
+// Lists that page
+// ---------------------------------------------------------------------------
+
+/**
+ * One page of a list that's too long to send whole: GET /invoices?cursor=.
+ *
+ * Proposed shape, to settle with the backend. `nextCursor` is opaque: send it
+ * back as `cursor` for the next page; null means this was the last. A cursor
+ * marks a place in the list, unlike a page number, so rows added while you
+ * scroll don't shift what the next page holds.
+ */
+export interface Page<T> {
+  items: T[];
+  /** How many there are in all, across every page, for "10 of 23". */
+  total: number;
+  nextCursor: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Invoices
+// ---------------------------------------------------------------------------
+
+/**
+ * Worked out by the server from the invoice's state, its payments and today's
+ * date: an issued invoice with a balance becomes "overdue" the day after it's due.
+ */
+export type InvoiceStatus = "draft" | "sent" | "part_paid" | "overdue" | "paid";
+
+/** An invoice as the list shows it: GET /invoices. */
+export interface Invoice {
+  id: string;
+  /** "INV-2026-0149", given when the draft is created. */
+  number: string;
+  client: Ref;
+  project: Ref | null;
+  /** What it's for: "Valuation 3", "Unit B-07, instalment 3 of 4". */
+  reference: string;
+  /** The date on the invoice. A draft carries the date it's meant to go out on. */
+  issuedOn: ISODate;
+  /** The issue date plus the payment terms. */
+  dueOn: ISODate;
+  /** What the client owes in all: the lines, plus VAT, less retention. */
+  total: Naira;
+  paid: Naira;
+  balance: Naira;
+  status: InvoiceStatus;
+}
+
+export interface InvoiceLine {
+  id: string;
+  description: string;
+  quantity: number;
+  /** "item", "t", "month" */
+  unit: string;
+  rate: Naira;
+  /** quantity × rate, to the kobo. */
+  amount: Naira;
+}
+
+export type PaymentMethod = "bank_transfer" | "cheque" | "cash" | "pos";
+
+export interface InvoicePayment {
+  id: string;
+  amount: Naira;
+  receivedOn: ISODate;
+  method: PaymentMethod;
+  /** The bank's or the client's reference: "ACP-2210". */
+  reference: string | null;
+  recordedBy: Ref;
+}
+
+/**
+ * Something that happened to an invoice: drafted, sent, viewed, chased, paid,
+ * a call about it. Worded when it happened and kept as written, like a ledger.
+ */
+export interface InvoiceEvent {
+  id: string;
+  at: ISODateTime;
+  /** "Sent to payables@crestview.example", "Payment received · ₦33,500,000" */
+  title: string;
+  /** Who did it; null for what the system saw, such as the client opening the email. */
+  by: Ref | null;
+  /** More, where there is more: "Bank transfer, ref ACP-2210". */
+  detail: string | null;
+}
+
+/** One invoice in full: GET /invoices/:id. */
+export interface InvoiceDetail extends Invoice {
+  /** The address it's emailed to. */
+  sendTo: string;
+  /** The client's own reference, such as their PO number. */
+  clientReference: string | null;
+  /** Due this many days after it's issued. */
+  paymentTermsDays: number;
+  lines: InvoiceLine[];
+  subtotal: Naira;
+  chargeVat: boolean;
+  /** The rate this invoice was raised at, kept with it if the company's rate changes. */
+  vatRate: number;
+  vat: Naira;
+  /** The share of the subtotal the client holds back until handover: 0.05. */
+  retentionRate: number;
+  retention: Naira;
+  notes: string | null;
+  payments: InvoicePayment[];
+  /** Newest first. */
+  activity: InvoiceEvent[];
+  createdBy: Ref;
+}
+
+/**
+ * What a draft is saved from: the body of POST /invoices and PUT /invoices/:id.
+ * Optional fields left blank are left out.
+ */
+export interface InvoiceInput {
+  clientId: string;
+  projectId?: string;
+  reference: string;
+  sendTo?: string;
+  clientReference?: string;
+  issuedOn: ISODate;
+  paymentTermsDays: number;
+  lines: { description: string; quantity: number; unit: string; rate: Naira }[];
+  chargeVat: boolean;
+  retentionRate: number;
+  notes?: string;
+}
+
+/** The body of POST /invoices/:id/payments. */
+export interface PaymentInput {
+  amount: Naira;
+  receivedOn: ISODate;
+  method: PaymentMethod;
+  reference?: string;
+}
+
+/** The figures over the invoice list, across every invoice: GET /invoices/summary. */
+export interface InvoiceSummary {
+  outstanding: { amount: Naira; count: number };
+  overdue: { amount: Naira; count: number; oldestDueDate: ISODate | null };
+  /** This month so far. */
+  collected: { month: ISOMonth; amount: Naira; invoiced: Naira };
+  drafts: { amount: Naira; count: number };
+  /** For the status filter. */
+  counts: Record<InvoiceStatus, number>;
+}
+
+/** The company as it appears on its invoices. Unset fields are null until filled in under Settings. */
+export interface CompanyDetails {
+  tradingName: string;
+  legalName: string | null;
+  rcNumber: string | null;
+  tin: string | null;
+  address: string | null;
+  bank: { name: string; accountName: string; accountNumber: string } | null;
+}
+
+/** GET /invoicing/settings */
+export interface InvoicingSettings {
+  vatRate: number;
+  /** The payment terms on offer, in days: [7, 14, 30, 45]. */
+  paymentTerms: number[];
+  defaultPaymentTermsDays: number;
+  /** The retention rates on offer: [0, 0.05, 0.1]. */
+  retentionRates: number[];
+  company: CompanyDetails;
+}
+
+// ---------------------------------------------------------------------------
+// Clients
+// ---------------------------------------------------------------------------
+
+/** Who a client is to the company: a contract client it builds for, or a property buyer. */
+export type ClientKind = "contract" | "buyer";
+
+/** GET /clients */
+export interface Client {
+  id: string;
+  name: string;
+  kind: ClientKind;
+  /** The person to deal with: "Bayo Akande, Head of Development". */
+  contact: string | null;
+  /** Where invoices go. */
+  email: string;
+  phone: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Suppliers
 // ---------------------------------------------------------------------------
 
