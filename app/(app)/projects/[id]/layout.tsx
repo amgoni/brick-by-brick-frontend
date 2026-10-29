@@ -1,3 +1,4 @@
+import { RouteParams } from "@/components/data/route-params";
 import { ProjectHeader, ProjectStats } from "@/components/projects/project-header";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 
@@ -8,20 +9,25 @@ import { ProjectTabs } from "@/components/projects/project-tabs";
  *
  * There's no generateStaticParams: the project ids live behind the API,
  * which the build doesn't call. So the build prerenders one shell for every
- * /projects/[id], the browser fetches the project, and nothing in here reads
- * `params` on the server (the components get the id with useParams).
+ * /projects/[id], the browser fetches the project, and nothing in here awaits
+ * `params` on the server. RouteParams hands the promise to the components,
+ * which read the id in the browser (useProjectId).
  */
-export default function ProjectLayout({ children }: LayoutProps<"/projects/[id]">) {
+export default function ProjectLayout({ params, children }: LayoutProps<"/projects/[id]">) {
   return (
-    // When the header finds no such project, the rest hides itself (CSS
-    // :has()), instead of every panel below reporting the same 404.
-    <div className="group/project flex flex-col gap-5">
-      <ProjectHeader />
-      <div className="flex flex-col gap-5 group-has-[[data-project-missing]]/project:hidden">
-        <ProjectStats />
-        <ProjectTabs />
-        {children}
+    <RouteParams params={params}>
+      {/*
+       * When the header finds no such project, the rest hides itself (CSS
+       * :has()), instead of every panel below reporting the same 404.
+       */}
+      <div className="group/project flex flex-col gap-5">
+        <ProjectHeader />
+        <div className="flex flex-col gap-5 group-has-[[data-project-missing]]/project:hidden">
+          <ProjectStats />
+          <ProjectTabs />
+          {children}
+        </div>
       </div>
-    </div>
+    </RouteParams>
   );
 }

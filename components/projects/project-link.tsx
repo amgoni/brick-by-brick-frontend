@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useRouteParam } from "@/components/data/route-params";
 import type { Ref } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
 import { projectQueries } from "@/lib/queries/projects";
@@ -24,14 +24,14 @@ export function projectHref(id: string, tab?: ProjectTab): string {
 }
 
 /**
- * The id in the URL of the project page this renders on.
+ * The id of the project page this renders on, from the page's own params (see
+ * useRouteParam for why not the URL).
  *
- * It reads the URL, which isn't known while a /projects/[id] page is
- * prerendered, so only call it inside a QueryBoundary or BrowserOnly: there
- * it runs in the browser alone.
+ * It isn't known while a /projects/[id] page is prerendered, so only call it
+ * inside a QueryBoundary or BrowserOnly: there it runs in the browser alone.
  */
 export function useProjectId(): string {
-  return useParams<{ id: string }>().id;
+  return useRouteParam("id");
 }
 
 interface ProjectLinkProps extends Omit<React.ComponentProps<typeof Link>, "href"> {
